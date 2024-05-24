@@ -1,0 +1,22 @@
+{
+    "manifest_version": 2,
+    "name": "osu! scores inspector",
+    "version": "1.0",
+    "description": "Implement more statistics on the osu! website",
+    "icons": {
+        "48": "icon.png"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://osu.ppy.sh/*"
+            ],
+            "js": [
+                "run.js"
+            ]
+        }
+    ],
+    "permissions": [
+        "<all_urls>"
+    ]
+}
