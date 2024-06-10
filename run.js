@@ -1,7 +1,7 @@
 //osu! scores inspector browser extension
 //extends osu!alt and inspector data to the official osu! website
 
-const SCORE_INSPECTOR_API = "http://localhost:3863/";
+const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
 async function run() {
     //check if we are on userpage
@@ -39,22 +39,22 @@ observer.observe(document, { childList: true, subtree: true });
 
 async function runUserPage() {
     //find profile-info__name
-    var profileNameParentNode = document.getElementsByClassName("profile-info__name")[0];
     const url = window.location.href;
     //remove trailing slash if it exists
     let fixedUrl = url.endsWith("/") ? url.slice(0, -1) : url;
 
     // const user_id = url.substring(url.lastIndexOf("/users/") + 7);
-    const user_id = url.match(/\/users\/(\d+)/)[1];
+    const user_id = fixedUrl.match(/\/users\/(\d+)/)[1];
 
     //after user_id, there may be a /osu, /taiko, /fruits or /mania, check for it. If none, it's osu
-    let mode = url.match(/\/users\/\d+\/(osu|taiko|fruits|mania)/);
+    let mode = fixedUrl.match(/\/users\/\d+\/(osu|taiko|fruits|mania)/);
     mode = mode ? mode[1] : "osu";
 
     const data = await getUserData(user_id);
 
     if (data.user_data?.inspector_user?.clan_member) {
         setOrCreateUserClanTagElement(data.user_data.inspector_user.clan_member.clan);
+        setOrCreateUserClanBannerElement(data.user_data.inspector_user.clan_member.clan);
     }
 
     if (mode === "osu") {
@@ -66,8 +66,9 @@ async function runUserPage() {
 
 async function getUserData(user_id) {
     //first we get /users/full/{user_id}
-    const response = await fetch(SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true");
-    const data = await parseReadableStreamToJson(response.body);
+    const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true";
+    const response = await fetch(url);
+    const data = await response.json();
 
     if (data.error) {
         console.error(data.error);
@@ -76,7 +77,7 @@ async function getUserData(user_id) {
 
     //then we get /users/stats/{user_id}
     const response2 = await fetch(SCORE_INSPECTOR_API + "users/stats/" + user_id);
-    const data2 = await parseReadableStreamToJson(response2.body);
+    const data2 = await response2.json();
 
     if (data2.error) {
         console.error(data2.error);
@@ -125,7 +126,6 @@ function setOrCreateStatisticsElements(data) {
     const ranks = ["B", "C", "D"];
     ranks.forEach(rank => {
         const count = document.getElementsByClassName(`score-rank--${rank} score-rank--profile-page`).length;
-        console.log("count", rank, count);
         if (!document.getElementsByClassName(`score-rank--${rank} score-rank--profile-page`).length) {
             var b = document.createElement("div");
             var div = document.createElement("div");
@@ -216,12 +216,54 @@ function setOrCreateUserClanTagElement(clan) {
     userTagParent.setAttribute("title", "");
 
     //make it a link to the clan page
-    userTagParent.href = `https://score.kirino.sh/clans/${clan.id}`;
+    userTagParent.href = `https://score.kirino.sh/clan/${clan.id}`;
     userTagParent.target = "_blank";
 }
 
-async function parseReadableStreamToJson(input) {
-    const data = (await input.getReader().read()).value
-    const str = String.fromCharCode.apply(String, data);
-    return JSON.parse(str);
+function setOrCreateUserClanBannerElement(clan) {
+    //find data-page-id "main"
+    const mainElement = document.querySelector("[data-page-id='main']");
+
+    //find index of class "profile-cover profile-info--cover"
+    const coverIndex = Array.from(mainElement.children).findIndex(child => child.classList.contains("profile-cover"));
+
+    var clanBanner = document.getElementById("inspector_user_banner");
+    if (clanBanner) {
+        //remove it and re-add it
+        clanBanner.remove();
+    }
+    clanBanner = document.createElement("div");
+
+    clanBanner.style.width = "100%";
+    clanBanner.style.height = "60px";
+    // clanBanner.style.backgroundColor = `#${clan.color}`;
+    if (clan.header_image_url) {
+        clanBanner.style.backgroundImage = `url(${clan.header_image_url})`;
+        clanBanner.style.backgroundSize = "cover";
+        clanBanner.style.backgroundPosition = "center";
+    }
+    clanBanner.id = "inspector_user_banner";
+
+    //text overlay
+    var overlay = document.createElement("div");
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "left";
+    overlay.style.paddingTop = "4px";
+    overlay.style.paddingLeft = "20px";
+    clanBanner.appendChild(overlay);
+
+    //clan tag
+    var clanTag = document.createElement("div");
+    clanTag.style.color = "white";
+    clanTag.style.fontWeight = "bold";
+    clanTag.style.fontSize = "20px";
+    clanTag.innerHTML = `<p>Clan member of <span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</p>`;
+    overlay.appendChild(clanTag);
+
+    //insert it after the cover
+    mainElement.insertBefore(clanBanner, mainElement.children[coverIndex + 2]);
 }
