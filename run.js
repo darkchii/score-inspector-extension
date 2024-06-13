@@ -61,7 +61,7 @@ async function runUserPage() {
     if (mode === "osu") {
         if (data.stats_data) {
             setOrCreateStatisticsElements(data.stats_data);
-            setNewRankGraph(data.stats_data.scoreRankHistory);
+            setNewRankGraph(data.stats_data.scoreRankHistory, data.stats_data.scoreRank);
         }
     }
 }
@@ -258,7 +258,17 @@ function setOrCreateUserClanBannerElement(clan) {
 let activeChart = 'pp';
 let ppRankData = null;
 let scoreRankData = null;
-function setNewRankGraph(score_rank_history) {
+function setNewRankGraph(score_rank_history, current_rank) {
+    const TODAY = new Date();
+
+    const cloned_rank_history = [...score_rank_history];
+    cloned_rank_history.push({
+        ...cloned_rank_history[cloned_rank_history.length - 1],
+        //date as YYYY-MM-DD
+        date: new Date().toISOString().split('T')[0],
+        rank: current_rank
+    })
+
     //get div with class "js-react--profile-page osu-layout osu-layout--full"
     const layout = document.getElementsByClassName("js-react--profile-page osu-layout osu-layout--full")[0];
 
@@ -268,43 +278,20 @@ function setNewRankGraph(score_rank_history) {
     //parse it
     const parsedData = JSON.parse(data);
     const rankHistory = parsedData.user.rank_history.data ?? parsedData.user.rankHistory.data ?? [];
-    console.log(parsedData);
-
-    const score_ranks_filled = [];
-
-    //for missing dates at score_rank_history, fill it with the previous value)
-    const today = new Date();
-    // const start = score_rank_history[0].date;
-    const start = new Date(score_rank_history[0].date);
-    //score_rank_history[i].date
-
-
-    let previousRank = null;
-    for (let i = 0; i < score_rank_history.length; i++) {
-        const date = new Date(score_rank_history[i].date);
-        const rank = score_rank_history[i].rank;
-        const pp = score_rank_history[i].pp;
-
-        //fill missing dates
-        const days = Math.floor((date - start) / (1000 * 60 * 60 * 24));
-        if (days > score_ranks_filled.length) {
-            for (let j = score_ranks_filled.length; j < days; j++) {
-                score_ranks_filled.push(previousRank);
-            }
-        }
-
-        score_ranks_filled.push(rank);
-        previousRank = rank;
-    }
 
     //generate data for pp rank (array is a simple number array [0,5,25,7763,...] sorted oldest to newest, 89d ago to today, convert it to object array {date,rank})
     const pp_ranks_filled = [];
-    for (let i = 0; i < rankHistory.length; i++) {
-        const rank = rankHistory[i];
-        //assume date based on index (0 = 89 days ago, 1 = 88 days ago, ...)
-        const date = new Date(today - (1000 * 60 * 60 * 24) * (rankHistory.length - i));
+    // for (let i = 0; i < rankHistory.length; i++) {
+    //     const rank = rankHistory[i];
+    //     //assume date based on index (0 = 89 days ago, 1 = 88 days ago, ...)
+    //     const date = new Date(TODAY - (1000 * 60 * 60 * 24) * (rankHistory.length - i));
+    //     pp_ranks_filled.push({ date, rank });
+    // }
+    //for loop in reverse, so the first entry is today, the 2nd is yesterday ....
+    rankHistory.reverse().forEach((rank, i) => {
+        const date = new Date(TODAY - (1000 * 60 * 60 * 24) * i);
         pp_ranks_filled.push({ date, rank });
-    }
+    });
 
     //find with class "line-chart line-chart--profile-page"
     const lineChart = document.getElementsByClassName("profile-detail__chart")[0];
@@ -353,7 +340,7 @@ function setNewRankGraph(score_rank_history) {
     }
 
     ppRankData = pp_ranks_filled;
-    scoreRankData = score_rank_history;
+    scoreRankData = cloned_rank_history;
 
     updateGraph(ppRankData, "PP Rank");
 }
