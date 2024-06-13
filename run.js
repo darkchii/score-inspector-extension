@@ -375,7 +375,8 @@ function updateGraph(rank_data, rank_type) {
                         unit: 'day'
                     },
                     display: false,
-                    grace: '10%'
+                    grace: '10%',
+                    offset: true
                 },
                 y: {
                     reverse: true,
