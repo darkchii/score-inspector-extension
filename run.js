@@ -261,13 +261,15 @@ let scoreRankData = null;
 function setNewRankGraph(score_rank_history, current_rank) {
     const TODAY = new Date();
 
-    const cloned_rank_history = [...score_rank_history];
-    cloned_rank_history.push({
-        ...cloned_rank_history[cloned_rank_history.length - 1],
-        //date as YYYY-MM-DD
-        date: new Date().toISOString().split('T')[0],
-        rank: current_rank
-    })
+    const cloned_rank_history = [...score_rank_history ?? []];
+    if (current_rank) {
+        cloned_rank_history.push({
+            ...cloned_rank_history[cloned_rank_history.length - 1],
+            //date as YYYY-MM-DD
+            date: new Date().toISOString().split('T')[0],
+            rank: current_rank
+        });
+    }
 
     //get div with class "js-react--profile-page osu-layout osu-layout--full"
     const layout = document.getElementsByClassName("js-react--profile-page osu-layout osu-layout--full")[0];
@@ -335,6 +337,13 @@ function setNewRankGraph(score_rank_history, current_rank) {
         }
         toggleLink.textContent = "Go to score rank";
 
+        //disable and strikethrough the link if there is no score rank data
+        if (!scoreRankData || scoreRankData.length === 0) {
+            toggleLink.style.pointerEvents = "none";
+            toggleLink.style.textDecoration = "line-through";
+        }
+
+
         chartParent.insertBefore(chartOwner, chartParent.children[1]);
         chartOwner.appendChild(toggleLink);
     }
@@ -400,7 +409,7 @@ function updateGraph(rank_data, rank_type) {
                             const date = context[0].parsed.x;
                             const today = new Date();
                             const days = Math.floor((today - date) / (1000 * 60 * 60 * 24));
-                            if(days === 0)
+                            if (days === 0)
                                 return "Today";
                             return `${days} day${days > 1 ? "s" : ""} ago`;
                         },
