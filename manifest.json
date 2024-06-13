@@ -4,7 +4,8 @@
     "version": "0.0.1",
     "description": "Implement more statistics on the osu! website",
     "icons": {
-        "48": "icon.png"
+        "48": "icon48.png",
+        "128": "icon128.png"
     },
     "content_scripts": [
         {
