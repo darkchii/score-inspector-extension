@@ -51,6 +51,7 @@ async function runUserPage() {
     mode = mode ? mode[1] : "osu";
 
     const data = await getUserData(user_id);
+    console.log(data);
 
     if (data.user_data?.inspector_user?.clan_member) {
         setOrCreateUserClanTagElement(data.user_data.inspector_user.clan_member.clan);
@@ -60,14 +61,19 @@ async function runUserPage() {
     if (mode === "osu") {
         if (data.stats_data) {
             setOrCreateStatisticsElements(data.stats_data);
+            setNewRankGraph(data.stats_data.scoreRankHistory);
         }
     }
 }
 
 async function getUserData(user_id) {
     //first we get /users/full/{user_id}
-    const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true";
-    const response = await fetch(url);
+    const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
+    const response = await fetch(url, {
+        headers: {
+            "Access-Control-Allow-Origin": "*"
+        }
+    });
     const data = await response.json();
 
     if (data.error) {
@@ -76,7 +82,11 @@ async function getUserData(user_id) {
     }
 
     //then we get /users/stats/{user_id}
-    const response2 = await fetch(SCORE_INSPECTOR_API + "users/stats/" + user_id);
+    const response2 = await fetch(SCORE_INSPECTOR_API + "users/stats/" + user_id, {
+        headers: {
+            "Access-Control-Allow-Origin": "*"
+        }
+    });
     const data2 = await response2.json();
 
     if (data2.error) {
@@ -84,32 +94,9 @@ async function getUserData(user_id) {
         return;
     }
 
-    const username = data?.alt?.username ?? data?.inspector_user?.known_username;
-
-    //get top50s data (https://osustats.ppy.sh/api/getScores)
-    const request_body = {
-        accMax: 100,
-        gamemode: 0,
-        page: 1,
-        rankMax: 50,
-        rankMin: 1,
-        resultType: 1,
-        sortBy: 0,
-        sortOrder: 0,
-        u1: username
-    }
-    const response3 = await fetch(`https://osustats.ppy.sh/api/getScores`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request_body)
-    });
-    const data3 = await response3.json();
-
     const _stats = {
         ...data2.stats,
-        top50s: data3
+        scoreRankHistory: data2.scoreRankHistory
     }
 
     return { user_data: data, stats_data: _stats };
@@ -159,7 +146,7 @@ function setOrCreateStatisticsElements(data) {
     var completionDisplay = getValueDisplay("Completion", `${(data.completion ?? 0).toFixed(2)}%`);
     profile_detail__values.appendChild(completionDisplay);
 
-    var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s[1] ?? 0).toLocaleString());
+    var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s ?? 0).toLocaleString());
     profile_detail__values.appendChild(top50sDisplay);
 }
 
@@ -267,3 +254,290 @@ function setOrCreateUserClanBannerElement(clan) {
     //insert it after the cover
     mainElement.insertBefore(clanBanner, mainElement.children[coverIndex + 2]);
 }
+
+let activeChart = 'pp';
+let ppRankData = null;
+let scoreRankData = null;
+function setNewRankGraph(score_rank_history) {
+    //get div with class "js-react--profile-page osu-layout osu-layout--full"
+    const layout = document.getElementsByClassName("js-react--profile-page osu-layout osu-layout--full")[0];
+
+    //get data attribute
+    const data = layout.getAttribute("data-initial-data");
+
+    //parse it
+    const parsedData = JSON.parse(data);
+    const rankHistory = parsedData.user.rank_history.data ?? parsedData.user.rankHistory.data ?? [];
+    console.log(parsedData);
+
+    const score_ranks_filled = [];
+
+    //for missing dates at score_rank_history, fill it with the previous value)
+    const today = new Date();
+    // const start = score_rank_history[0].date;
+    const start = new Date(score_rank_history[0].date);
+    //score_rank_history[i].date
+
+
+    let previousRank = null;
+    for (let i = 0; i < score_rank_history.length; i++) {
+        const date = new Date(score_rank_history[i].date);
+        const rank = score_rank_history[i].rank;
+        const pp = score_rank_history[i].pp;
+
+        //fill missing dates
+        const days = Math.floor((date - start) / (1000 * 60 * 60 * 24));
+        if (days > score_ranks_filled.length) {
+            for (let j = score_ranks_filled.length; j < days; j++) {
+                score_ranks_filled.push(previousRank);
+            }
+        }
+
+        score_ranks_filled.push(rank);
+        previousRank = rank;
+    }
+
+    //generate data for pp rank (array is a simple number array [0,5,25,7763,...] sorted oldest to newest, 89d ago to today, convert it to object array {date,rank})
+    const pp_ranks_filled = [];
+    for (let i = 0; i < rankHistory.length; i++) {
+        const rank = rankHistory[i];
+        //assume date based on index (0 = 89 days ago, 1 = 88 days ago, ...)
+        const date = new Date(today - (1000 * 60 * 60 * 24) * (rankHistory.length - i));
+        pp_ranks_filled.push({ date, rank });
+    }
+
+    //find with class "line-chart line-chart--profile-page"
+    const lineChart = document.getElementsByClassName("profile-detail__chart")[0];
+    if (lineChart) {
+        //get index in parent
+        const chartParent = lineChart.parentNode;
+        const index = Array.from(chartParent.children).indexOf(lineChart);
+        //remove it
+        lineChart.remove();
+
+        //create chart context
+        const chartOwner = document.createElement("div");
+        const chart = document.createElement("canvas");
+        chart.id = "custom_rank_chart";
+
+        chartOwner.appendChild(chart);
+        chartOwner.style.width = "100%";
+        chartOwner.style.height = "90px";
+        chartOwner.style.marginTop = "10px";
+        chartOwner.style.marginBottom = "30px";
+
+        //Toggle link
+        const toggleLink = document.createElement("a");
+        toggleLink.href = "javascript:void(0)";
+        toggleLink.textContent = "Toggle PP Rank";
+        toggleLink.style.color = "#fc2";
+        toggleLink.style.textDecoration = "underline";
+        toggleLink.style.fontSize = "12px";
+        toggleLink.style.marginTop = "5px";
+        toggleLink.style.display = "block";
+        toggleLink.onclick = () => {
+            if (activeChart === 'pp') {
+                updateGraph(scoreRankData, "Score Rank");
+                activeChart = 'score';
+                toggleLink.textContent = "Go to performance rank";
+            } else {
+                updateGraph(ppRankData, "PP Rank");
+                activeChart = 'pp';
+                toggleLink.textContent = "Go to score rank";
+            }
+        }
+        toggleLink.textContent = "Go to score rank";
+
+        chartParent.insertBefore(chartOwner, chartParent.children[1]);
+        chartOwner.appendChild(toggleLink);
+    }
+
+    ppRankData = pp_ranks_filled;
+    scoreRankData = score_rank_history;
+
+    updateGraph(ppRankData, "PP Rank");
+}
+
+function updateGraph(rank_data, rank_type) {
+    let ctx = document.getElementById("custom_rank_chart");
+    //destroy previous chart
+    if (ctx) {
+        let _clone = ctx.cloneNode(true);
+        ctx.parentNode.replaceChild(_clone, ctx);
+        ctx = _clone;
+    }
+
+    const data = {
+        type: 'line',
+        data: {
+            labels: rank_data.map(data => data.date),
+            datasets: [{
+                label: rank_type,
+                data: rank_data.map(data => data.rank),
+                borderColor: '#fc2',
+                tension: 0.1,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'day'
+                    },
+                    display: false,
+                    grace: '10%'
+                },
+                y: {
+                    reverse: true,
+                    display: false,
+                    grace: '10%'
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    enabled: false,
+                    position: 'nearest',
+                    external: externalTooltipHandler,
+                    callbacks: {
+                        title: function (context) {
+                            // return context[0].raw;
+                            // return new Date(context[0].parsed.x).toLocaleDateString();
+                            //show days ago / today
+                            const date = context[0].parsed.x;
+                            const today = new Date();
+                            const days = Math.floor((today - date) / (1000 * 60 * 60 * 24));
+                            if(days === 0)
+                                return "Today";
+                            return `${days} day${days > 1 ? "s" : ""} ago`;
+                        },
+                        label: function (context) {
+                            return context.dataset.label + ": #" + context.parsed.y.toLocaleString('en-US');
+                        }
+                    }
+                }
+            },
+            elements: {
+                point: {
+                    radius: 0,
+                    hoverRadius: 10,
+                    hitRadius: 10,
+                    hoverBorderWidth: 5,
+                }
+            },
+        }
+    };
+
+    //also add left/right padding
+    new Chart(ctx, data);
+}
+
+const getOrCreateTooltip = (chart) => {
+    let tooltipEl = chart.canvas.parentNode.querySelector('div');
+
+    if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.style.background = 'rgba(0, 0, 0, 0.7)';
+        tooltipEl.style.borderRadius = '3px';
+        tooltipEl.style.color = 'white';
+        tooltipEl.style.opacity = 1;
+        tooltipEl.style.pointerEvents = 'none';
+        tooltipEl.style.position = 'absolute';
+        tooltipEl.style.transform = 'translate(-50%, -140%)';
+        tooltipEl.style.transition = 'all .1s ease';
+
+        const table = document.createElement('table');
+        table.style.margin = '0px';
+
+        tooltipEl.appendChild(table);
+        chart.canvas.parentNode.appendChild(tooltipEl);
+    }
+
+    return tooltipEl;
+};
+
+const externalTooltipHandler = (context) => {
+    // Tooltip Element
+    const { chart, tooltip } = context;
+    const tooltipEl = getOrCreateTooltip(chart);
+
+    // Hide if no tooltip
+    if (tooltip.opacity === 0) {
+        tooltipEl.style.opacity = 0;
+        return;
+    }
+
+    // Set Text
+    if (tooltip.body) {
+        const titleLines = tooltip.title || [];
+        const bodyLines = tooltip.body.map(b => b.lines);
+
+        const tableHead = document.createElement('thead');
+
+        titleLines.forEach(title => {
+            const tr = document.createElement('tr');
+            tr.style.borderWidth = 0;
+
+            const th = document.createElement('th');
+            th.style.borderWidth = 0;
+            const text = document.createTextNode(title);
+
+            th.appendChild(text);
+            tr.appendChild(th);
+            tableHead.appendChild(tr);
+        });
+
+        const tableBody = document.createElement('tbody');
+        bodyLines.forEach((body, i) => {
+            const colors = tooltip.labelColors[i];
+
+            const span = document.createElement('span');
+            span.style.background = colors.backgroundColor;
+            span.style.borderColor = colors.borderColor;
+            span.style.borderWidth = '2px';
+            span.style.marginRight = '10px';
+            span.style.height = '10px';
+            span.style.width = '10px';
+            span.style.display = 'inline-block';
+
+            const tr = document.createElement('tr');
+            tr.style.backgroundColor = 'inherit';
+            tr.style.borderWidth = 0;
+
+            const td = document.createElement('td');
+            td.style.borderWidth = 0;
+
+            const text = document.createTextNode(body);
+
+            td.appendChild(span);
+            td.appendChild(text);
+            tr.appendChild(td);
+            tableBody.appendChild(tr);
+        });
+
+        const tableRoot = tooltipEl.querySelector('table');
+
+        // Remove old children
+        while (tableRoot.firstChild) {
+            tableRoot.firstChild.remove();
+        }
+
+        // Add new children
+        tableRoot.appendChild(tableHead);
+        tableRoot.appendChild(tableBody);
+    }
+
+    const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
+
+    // Display, position, and set styles for font
+    tooltipEl.style.opacity = 1;
+    tooltipEl.style.left = positionX + tooltip.caretX + 'px';
+    tooltipEl.style.top = positionY + tooltip.caretY + 'px';
+    tooltipEl.style.font = tooltip.options.bodyFont.string;
+    tooltipEl.style.padding = tooltip.options.padding + 'px ' + tooltip.options.padding + 'px';
+};

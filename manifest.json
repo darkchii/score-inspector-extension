@@ -12,7 +12,9 @@
                 "*://osu.ppy.sh/*"
             ],
             "js": [
-                "run.js"
+                "run.js",
+                "chart.js",
+                "date-fns.js"
             ]
         }
     ],
