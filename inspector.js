@@ -43,9 +43,12 @@
         mutations.forEach((mutation) => {
             if (location.href !== previousLocation) {
                 previousLocation = location.href;
-                //wait a bit for the page to load
                 (async () => {
                     await new Promise(r => setTimeout(r, 1000));
+                    //wait until the element with class "turbolinks-progress-bar" is gone
+                    while (document.getElementsByClassName("turbolinks-progress-bar").length > 0) {
+                        await new Promise(r => setTimeout(r, 100));
+                    }
                 })().then(() => {
                     run();
                 })();
