@@ -21,6 +21,7 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 ## Bugs
 Things that will be fixed in a future update
 - ~~If player default mode is not set to standard, it still loads standard data.~~ (Fixed in 2024-06-15.3)
+- Data sometimes not loading when navigating within the site
 
 Other extensions may break this, or the other way around. Potential issues (and fixes):
 
