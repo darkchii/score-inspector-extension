@@ -17,3 +17,10 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 3. Tampermonkey should automatically detect the userscript and open a new tab with the installation prompt.
 
 4. Once installed, the userscript will be active and ready to use.
+
+## Bugs
+
+Other extensions may break this, or the other way around. Potential issues (and fixes):
+
+- cyperdark's color changer
+- - Turn off 'Adjust profile (More compact)'
