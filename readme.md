@@ -2,7 +2,7 @@
 
 This userscript adds more stats to user profiles on the official osu! websites.
 
-For the foreseeable future, only the standard gamemode is supported.
+For the foreseeable future, only the standard gamemode is supported, and only for users available on the osu!alt discord (typically top 10k + another 40k players, check the site below for more info)
 
 Also check out https://score.kirino.sh/!
 
