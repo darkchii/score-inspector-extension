@@ -279,7 +279,7 @@
         clanTag.style.color = "white";
         clanTag.style.fontWeight = "light";
         clanTag.style.fontSize = "20px";
-        clanTag.innerHTML = `<p style="margin-bottom: 0px;">Clan member of <span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</p>`;
+        clanTag.innerHTML = `<p style="margin-bottom: 0px;">Clan member of <a href="https://score.kirino.sh/clan/${clan.id}" target="_blank"><span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</a></p>`;
         overlay.appendChild(clanTag);
 
         //insert it after the cover
