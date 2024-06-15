@@ -12,7 +12,7 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 
 1. Make sure you have [Tampermonkey](https://www.tampermonkey.net/) installed in your browser. If not, you can download and install it from the official Tampermonkey website.
 
-2. Open the provided GitHub link: [score-inspector-extension](https://github.com/darkchii/score-inspector-extension/raw/main/inspector.user.js).
+2. Open the provided GitHub link: [score-inspector-extension](https://github.com/wuaht/score-inspector-extension/raw/main/inspector.user.js).
 
 3. Tampermonkey should automatically detect the userscript and open a new tab with the installation prompt.
 
