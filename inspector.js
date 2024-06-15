@@ -16,6 +16,7 @@
 // @grant        GM_getValue
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0
+// @downloadURL  https://github.com/darkchii/score-inspector-extension/blob/main/inspector.js
 // ==/UserScript==
 
 (function () {
