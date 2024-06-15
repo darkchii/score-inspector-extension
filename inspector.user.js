@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-15.2
+// @version      2024-06-15.3
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        http://osu.ppy.sh/users/*
@@ -72,6 +72,13 @@
         //after user_id, there may be a /osu, /taiko, /fruits or /mania, check for it. If none, it's osu
         let mode = fixedUrl.match(/\/users\/\d+\/(osu|taiko|fruits|mania)/);
         mode = mode ? mode[1] : "osu";
+
+        //double check with selected mode through elements
+        //find data-mode attribute with element class "game-mode-link game-mode-link--active"
+        const activeModeElement = document.getElementsByClassName("game-mode-link game-mode-link--active")[0];
+        if (activeModeElement) {
+            mode = activeModeElement.getAttribute("data-mode");
+        }
 
         const data = await getUserData(user_id);
         console.log(data);
