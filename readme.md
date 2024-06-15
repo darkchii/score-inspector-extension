@@ -18,6 +18,11 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 
 4. Once installed, the userscript will be active and ready to use.
 
+## TODO
+- Show clantags everywhere on the site (leaderboards, friends list... etc)
+- Remember selected rank graph
+- A notification if user has no osu!alt statistics available
+
 ## Bugs
 Things that will be fixed in a future update
 - ~~If player default mode is not set to standard, it still loads standard data.~~ (Fixed in 2024-06-15.3)
