@@ -76,7 +76,7 @@
         const data = await getUserData(user_id);
         console.log(data);
 
-        if (data.user_data?.inspector_user?.clan_member) {
+        if (data.user_data?.inspector_user?.clan_member && !data.user_data?.inspector_user?.clan_member?.pending) {
             setOrCreateUserClanTagElement(data.user_data.inspector_user.clan_member.clan);
             setOrCreateUserClanBannerElement(data.user_data.inspector_user.clan_member.clan);
         }
