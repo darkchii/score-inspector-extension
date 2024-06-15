@@ -6,7 +6,7 @@
 // @author       Amayakase
 // @match        http://osu.ppy.sh/users/*
 // @match        https://osu.ppy.sh/users/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=ppy.sh
+// @icon         https://raw.githubusercontent.com/darkchii/score-inspector-extension/main/icon48.png
 // @noframes
 // @grant        GM.xmlHttpRequest
 // @grant        GM.setValue
@@ -17,6 +17,7 @@
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0
 // @downloadURL  https://github.com/darkchii/score-inspector-extension/blob/main/inspector.js
+// @updateURL    https://github.com/darkchii/score-inspector-extension/blob/main/inspector.js
 // ==/UserScript==
 
 (function () {
