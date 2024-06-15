@@ -178,6 +178,8 @@
 
         var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s ?? 0).toLocaleString());
         profile_detail__values.appendChild(top50sDisplay);
+
+        profile_detail__values.style.rowGap = "5px";
     }
 
     function getValueDisplay(label, value) {
@@ -269,16 +271,15 @@
         overlay.style.display = "flex";
         overlay.style.alignItems = "center";
         overlay.style.justifyContent = "left";
-        overlay.style.paddingTop = "4px";
-        overlay.style.paddingLeft = "20px";
+        overlay.style.paddingLeft = "50px";
         clanBanner.appendChild(overlay);
 
         //clan tag
         var clanTag = document.createElement("div");
         clanTag.style.color = "white";
-        clanTag.style.fontWeight = "bold";
+        clanTag.style.fontWeight = "light";
         clanTag.style.fontSize = "20px";
-        clanTag.innerHTML = `<p>Clan member of <span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</p>`;
+        clanTag.innerHTML = `<p style="margin-bottom: 0px;">Clan member of <a href="https://score.kirino.sh/clan/${clan.id}" target="_blank"><span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</a></p>`;
         overlay.appendChild(clanTag);
 
         //insert it after the cover
@@ -355,15 +356,15 @@
             }
             toggleLink.textContent = "Go to score rank";
 
-            //disable and strikethrough the link if there is no score rank data
-            if (!scoreRankData || scoreRankData.length === 0) {
-                toggleLink.style.pointerEvents = "none";
-                toggleLink.style.textDecoration = "line-through";
-            }
-
 
             chartParent.insertBefore(chartOwner, chartParent.children[1]);
             chartOwner.appendChild(toggleLink);
+
+            //completely REMOVES the link if there is no score rank data
+            if (!scoreRankData || scoreRankData.length === 0) {
+                toggleLink.remove();
+            }
+
         }
 
         updateGraph(ppRankData, "PP Rank");
@@ -439,7 +440,7 @@
                         radius: 0,
                         hoverRadius: 10,
                         hitRadius: 10,
-                        hoverBorderWidth: 5,
+                        hoverBorderWidth: 5
                     }
                 },
             }
