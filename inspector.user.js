@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-15.1
+// @version      2024-06-15.2
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        http://osu.ppy.sh/users/*
