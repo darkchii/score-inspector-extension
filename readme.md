@@ -19,6 +19,8 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 4. Once installed, the userscript will be active and ready to use.
 
 ## Bugs
+Things that will be fixed in a future update
+- If player default mode is not set to standard, it still loads standard data.
 
 Other extensions may break this, or the other way around. Potential issues (and fixes):
 
