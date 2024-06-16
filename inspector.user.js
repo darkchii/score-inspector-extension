@@ -1,19 +1,14 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-15.4
+// @version      2024-06-16.5
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        http://osu.ppy.sh/users/*
 // @match        https://osu.ppy.sh/users/*
 // @icon         https://raw.githubusercontent.com/darkchii/score-inspector-extension/main/icon48.png
 // @noframes
-// @grant        GM.xmlHttpRequest
-// @grant        GM.setValue
-// @grant        GM.getValue
-// @grant        GM_xmlhttpRequest
-// @grant        GM_setValue
-// @grant        GM_getValue
+// @grant none
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0
 // @downloadURL  https://github.com/darkchii/score-inspector-extension/raw/main/inspector.user.js
@@ -24,6 +19,10 @@
     'use strict';
 
     const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+
+    document.addEventListener("turbolinks:load", async function () {
+        await run();
+    });
 
     async function run() {
         if (window.location.href.includes("osu.ppy.sh/users")) {
@@ -39,26 +38,6 @@
         }
     }
     run();
-
-    let previousLocation = location.href;
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (location.href !== previousLocation) {
-                previousLocation = location.href;
-                (async () => {
-                    await new Promise(r => setTimeout(r, 1000));
-                    //wait until the element with class "turbolinks-progress-bar" is gone
-                    while (document.getElementsByClassName("turbolinks-progress-bar").length > 0) {
-                        await new Promise(r => setTimeout(r, 100));
-                    }
-                })().then(() => {
-                    run();
-                })();
-            }
-        });
-    });
-
-    observer.observe(document, { childList: true, subtree: true });
 
     async function runUserPage() {
         //find profile-info__name
