@@ -22,7 +22,7 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 - Show clantags everywhere on the site (leaderboards, friends list... etc)
 - Remember selected rank graph
 - A notification if user has no osu!alt statistics available
-- Add completion badges to those who don't have it
+- ~~Add completion badges to those who don't have it~~ (Added in 2024-06-16.6)
 
 ## Bugs
 Things that will be fixed in a future update
