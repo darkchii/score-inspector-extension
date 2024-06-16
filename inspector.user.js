@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-16.6
+// @version      2024-06-16.7
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -45,6 +45,7 @@
     async function run() {
         await runUserPage();
         await runUsernames();
+        await runScoreRankCompletionPercentages();
     }
     run();
 
@@ -123,6 +124,79 @@
             });
 
             observer.observe(usercards[i], { childList: true });
+        }
+    }
+
+    //replaces the accuracy column with a completion percentage column
+    async function runScoreRankCompletionPercentages(){
+        //check if we are on "/rankings/osu/score" page
+        const _url = window.location.href;
+        if(!_url.includes("/rankings/osu/score")) {
+            return;
+        }
+
+        //wait for class 'ranking-page-table' to load
+        await WaitForElement('.ranking-page-table');
+
+        //get all the rows in the table
+        //rows are in the tbody of the table
+        const table = document.getElementsByClassName('ranking-page-table')[0];
+        const thead = table.getElementsByTagName('thead')[0];
+        const tbody = table.getElementsByTagName('tbody')[0];
+        const rows = tbody.getElementsByTagName('tr');
+        const headerRow = thead.getElementsByTagName('tr')[0];
+
+        //accuracy row is index 2
+        const USER_INDEX = 1;
+        const ACCURACY_INDEX = 2;
+
+        //change header to "Completion"
+        const headerCells = headerRow.getElementsByTagName('th');
+        headerCells[ACCURACY_INDEX].textContent = "Completion";
+
+        //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
+        let ids = [];
+        for(let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            cells[ACCURACY_INDEX].textContent = "-";
+
+            //get the user id from the data-user-id attribute
+            //from column 1, get the the first child element with class 'js-usercard' in it, then get the data-user-id attribute
+            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
+            ids.push(user_id);
+        }
+
+        //comma separated string
+        const id_string = ids.join(',');
+
+        const url = `${SCORE_INSPECTOR_API}users/stats/completion_percentage/${id_string}`;
+        const response = await fetch(url, {
+            headers: {
+                "Access-Control-Allow-Origin": "*"
+            }
+        });
+
+        const data = await response.json();
+
+        if(data.error) {
+            console.error(data.error);
+            return;
+        }
+
+        for(let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
+            let completion_percentage = data.find(d => d.user_id == user_id)?.completion ?? "-";
+            if(completion_percentage !== "-") {
+                //cap it at 100%, used profile stats for SS,S,A, which may be different from osu!alt
+                completion_percentage = Math.min(completion_percentage, 100);
+                completion_percentage = completion_percentage.toFixed(2);
+            }
+
+            //round to 2 decimal places
+            cells[ACCURACY_INDEX].textContent = `${completion_percentage}%`;
         }
     }
 
