@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-16.5
+// @version      2024-06-16.6
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
-// @match        http://osu.ppy.sh/users/*
-// @match        https://osu.ppy.sh/users/*
+// @match        https://osu.ppy.sh/*
 // @icon         https://raw.githubusercontent.com/darkchii/score-inspector-extension/main/icon48.png
 // @noframes
 // @grant none
@@ -20,51 +19,152 @@
 
     const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
+    const MODE_NAMES = [
+        "osu!",
+        "osu!taiko",
+        "osu!catch",
+        "osu!mania"
+    ];
+
+    const MODE_SLUGS = [
+        "osu",
+        "taiko",
+        "catch",
+        "mania"
+    ]
+
     document.addEventListener("turbolinks:load", async function () {
         await run();
     });
 
-    async function run() {
-        if (window.location.href.includes("osu.ppy.sh/users")) {
-            const startTime = new Date().getTime();
-            while (document.getElementsByClassName("profile-info__name").length == 0) {
-                if (new Date().getTime() - startTime > 5000) {
-                    return;
-                }
-                await new Promise(r => setTimeout(r, 500));
-            }
+    //lets script know what elements to wait for before running
+    const PAGE_ELEMENT_WAIT_LIST = {
+        'user_page': '.profile-info__name',
+    }
 
-            await runUserPage();
-        }
+    async function run() {
+        await runUserPage();
+        await runUsernames();
     }
     run();
 
+    //finds all usernames on the page and adds clan tags to them
+    async function runUsernames() {
+        //wait 1 second for the page to load
+        await new Promise(r => setTimeout(r, 1000));
+        const usercards = document.getElementsByClassName("js-usercard");
+        const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
+        const clan_data = await getUsersClans(user_ids);
+
+        modifyJsUserCards(clan_data);
+    }
+
+    function modifyJsUserCards(clan_data) {
+        //find all elements that CONTAINS class "js-usercard"
+        const usercards = document.querySelectorAll("[class*='js-usercard']");
+
+        for (let i = 0; i < usercards.length; i++) {
+            //get the user id from the data-user-id attribute
+            const user_id = usercards[i].getAttribute("data-user-id");
+            const user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
+
+            if (!user_clan_data) {
+                continue;
+            }
+
+            //if clan tag already exists, skip
+            if (document.getElementById(`inspector_user_tag_${user_id}`)) {
+                continue;
+            }
+
+            //get content of the element (the username)
+            let username = usercards[i].textContent;
+            //trim the username
+            username = username.trim();
+
+            //create a span element ([clan_tag] username), set the color and url to the clan tag
+            const clanTag = document.createElement("a");
+            clanTag.textContent = `[${user_clan_data.clan.tag}] `;
+            clanTag.style.color = `#${user_clan_data.clan.color}`;
+            clanTag.style.fontWeight = "bold";
+            clanTag.href = `https://score.kirino.sh/clan/${user_clan_data.clan.id}`;
+            clanTag.target = "_blank";
+            //force single line
+            clanTag.style.whiteSpace = "nowrap";
+            //set id
+            clanTag.id = `inspector_user_tag_${user_id}`
+
+            //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
+            const usercardLink = usercards[i].getElementsByClassName("user-card-brick__link")[0];
+            if (usercardLink) {
+                clanTag.style.marginRight = "5px";
+                usercardLink.insertBefore(clanTag, usercardLink.childNodes[1]);
+            } else {
+                usercards[i].insertBefore(clanTag, usercards[i].childNodes[0]);
+            }
+
+            //also add an event listener to the usercards to update the clan tag when the usercard is updated
+            //other extensions might update the usercard after the page is loaded
+            //this causes the clan tag to disappear
+
+            // MutationObserver to detect changes in the usercard
+            const observer = new MutationObserver((mutationsList, observer) => {
+                for (let mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        //if the usercard is updated, re-add the clan tag
+                        if (mutation.target.classList.contains("js-usercard")) {
+                            //only clan_data of the user
+                            const sub_clan_data = clan_data.find(clan => clan.osu_id == mutation.target.getAttribute("data-user-id"));
+                            modifyJsUserCards(sub_clan_data);
+                            observer.disconnect();
+                        }
+                    }
+                }
+            });
+
+            observer.observe(usercards[i], { childList: true });
+        }
+    }
+
     async function runUserPage() {
-        //find profile-info__name
         const url = window.location.href;
-        //remove trailing slash if it exists
         let fixedUrl = url.endsWith("/") ? url.slice(0, -1) : url;
+        let user_id = null;
+        try {
+            user_id = fixedUrl.match(/\/users\/(\d+)/)[1];
+        } catch (e) { }
 
-        // const user_id = url.substring(url.lastIndexOf("/users/") + 7);
-        const user_id = fixedUrl.match(/\/users\/(\d+)/)[1];
 
-        //after user_id, there may be a /osu, /taiko, /fruits or /mania, check for it. If none, it's osu
+        if (!user_id) {
+            return;
+        }
+
         let mode = fixedUrl.match(/\/users\/\d+\/(osu|taiko|fruits|mania)/);
         mode = mode ? mode[1] : "osu";
 
-        //double check with selected mode through elements
-        //find data-mode attribute with element class "game-mode-link game-mode-link--active"
         const activeModeElement = document.getElementsByClassName("game-mode-link game-mode-link--active")[0];
         if (activeModeElement) {
             mode = activeModeElement.getAttribute("data-mode");
         }
 
+        await WaitForElement(PAGE_ELEMENT_WAIT_LIST.user_page);
+        // const startTime = new Date().getTime();
+        // while (document.getElementsByClassName("profile-info__name").length == 0) {
+        //     if (new Date().getTime() - startTime > 5000) {
+        //         return;
+        //     }
+        //     await new Promise(r => setTimeout(r, 500));
+        // }
+
         const data = await getUserData(user_id);
-        console.log(data);
 
         if (data.user_data?.inspector_user?.clan_member && !data.user_data?.inspector_user?.clan_member?.pending) {
             setOrCreateUserClanTagElement(data.user_data.inspector_user.clan_member.clan);
             setOrCreateUserClanBannerElement(data.user_data.inspector_user.clan_member.clan);
+        }
+
+        if(data.stats_data?.completionists) {
+            setCompletionistBadges(data.stats_data.completionists);
         }
 
         if (mode === "osu") {
@@ -73,6 +173,37 @@
                 setNewRankGraph(data.stats_data.scoreRankHistory, data.stats_data.scoreRank);
             }
         }
+    }
+
+    async function WaitForElement(selector, timeout = 5000) {
+        const startTime = new Date().getTime();
+        while (document.querySelectorAll(selector).length == 0) {
+            if (new Date().getTime() - startTime > timeout) {
+                return null;
+            }
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+
+    async function getUsersClans(user_ids) {
+        if (!user_ids || user_ids.length === 0) {
+            return [];
+        }
+        const url = SCORE_INSPECTOR_API + "clans/user/" + user_ids.join(",");
+        const response = await fetch(url, {
+            headers: {
+                "Access-Control-Allow-Origin": "*"
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            console.error(data.error);
+            return [];
+        }
+
+        return data;
     }
 
     async function getUserData(user_id) {
@@ -98,6 +229,19 @@
         });
         const data2 = await response2.json();
 
+        const response3 = await fetch(SCORE_INSPECTOR_API + "users/osu/completionists", {
+            headers: {
+                "Access-Control-Allow-Origin": "*"
+            }
+        });
+        const data3 = await response3.json();
+
+        let completionist_data = [];
+        if(data3 && !data3.error) {
+            //find all where osu_id == user_id
+            completionist_data = data3.filter(c => c.osu_id == user_id);
+        }
+
         if (data2.error) {
             console.error(data2.error);
             return;
@@ -105,10 +249,85 @@
 
         const _stats = {
             ...data2.stats,
-            scoreRankHistory: data2.scoreRankHistory
+            scoreRankHistory: data2.scoreRankHistory,
+            completionists: completionist_data
         }
 
         return { user_data: data, stats_data: _stats };
+    }
+
+    function setCompletionistBadges(badge_data) {
+        if(!badge_data || badge_data.length === 0) {
+            return;
+        }
+
+        //check if we have a badge area already (class "profile-badges"), otherwise create it
+        var badgeArea = document.getElementsByClassName("profile-badges")[0];
+
+        if (!badgeArea) {
+            badgeArea = document.createElement("div");
+            badgeArea.className = "profile-badges";
+
+            //insert it before "profile-detail"
+            const profileDetail = document.getElementsByClassName("profile-detail")[0];
+            profileDetail.parentNode.insertBefore(badgeArea, profileDetail);
+        }
+
+        //order newest to oldest
+        badge_data.sort((a, b) => new Date(b.completion_date) - new Date(a.completion_date));
+
+        //create a badge for each completionist badge
+        badge_data.forEach(badge => {
+            if (badgeArea.querySelector(`img[src='https://assets.ppy.sh/profile-badges/completionist_${MODE_SLUGS[badge.mode]}.png']`)) {
+                return;
+            }
+
+            var a = document.createElement("a");
+            a.href = `https://score.kirino.sh/completionists`;
+
+            badgeArea.appendChild(a);
+
+            const pretty_date = new Date(badge.completion_date).toLocaleDateString("en-GB", {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            var img = document.createElement("img");
+            // img.src = MODE_COMPLETION_BADGES[badge.mode];
+            img.src = `https://assets.ppy.sh/profile-badges/completionist_${MODE_SLUGS[badge.mode]}.png`;
+            img.className = "profile-badges__badge";
+            a.setAttribute("data-html-title", `
+                    <div>${MODE_NAMES[badge.mode]} completionist (awarded ${badge.completion_date})</div>
+                    <div>Scores: ${badge.scores.toLocaleString()}</div>
+                    <div class='profile-badges__date'>${pretty_date}</div>
+                `);
+
+            a.title = `${MODE_NAMES[badge.mode]} completionist (awarded ${pretty_date})`
+
+            a.appendChild(img);
+        });
+
+        const badges = Array.from(badgeArea.children);
+        if(badges && badges.length > 1) {
+            for(let i = badges.length - 1; i > 0; i--) {
+                const current = badges[i];
+                const previous = badges[i - 1];
+
+                //find both 'data-html-title' attributes in the current and next tree, may be on the element or any child element
+                let current_data_html_title = searchElementForAttribute(current, "data-html-title");
+                let previous_data_html_title = searchElementForAttribute(previous, "data-html-title");
+
+                //find profile-badges__date
+                const dateCurrent = current_data_html_title.match(/<div class='profile-badges__date'>(.*?)<\/div>/)[1] ?? "";
+                const datePrevious = previous_data_html_title.match(/<div class='profile-badges__date'>(.*?)<\/div>/)[1] ?? "";
+
+                //if previous is older than current, swap them
+                if(new Date(datePrevious) < new Date(dateCurrent)) {
+                    badgeArea.insertBefore(current, previous);
+                }
+            }
+        }
     }
 
     function setOrCreateStatisticsElements(data) {
@@ -533,4 +752,19 @@
         tooltipEl.style.font = tooltip.options.bodyFont.string;
         tooltipEl.style.padding = tooltip.options.padding + 'px ' + tooltip.options.padding + 'px';
     };
+
+    function searchElementForAttribute(element, attribute) {
+        if (element.getAttribute(attribute)) {
+            return element.getAttribute(attribute);
+        }
+
+        for (let i = 0; i < element.children.length; i++) {
+            const child = element.children[i];
+            if (child.getAttribute(attribute)) {
+                return child.getAttribute(attribute);
+            }
+        }
+
+        return null;
+    }
 })();
