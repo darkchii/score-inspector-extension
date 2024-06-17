@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-16.7
+// @version      2024-06-17.8
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -30,6 +30,13 @@
         "osu",
         "taiko",
         "catch",
+        "mania"
+    ]
+
+    const MODE_SLUGS_ALT = [
+        "osu",
+        "taiko",
+        "fruits",
         "mania"
     ]
 
@@ -128,10 +135,10 @@
     }
 
     //replaces the accuracy column with a completion percentage column
-    async function runScoreRankCompletionPercentages(){
+    async function runScoreRankCompletionPercentages() {
         //check if we are on "/rankings/osu/score" page
         const _url = window.location.href;
-        if(!_url.includes("/rankings/osu/score")) {
+        if (!_url.includes("/rankings/osu/score")) {
             return;
         }
 
@@ -156,7 +163,7 @@
 
         //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
         let ids = [];
-        for(let i = 0; i < rows.length; i++) {
+        for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const cells = row.getElementsByTagName('td');
             cells[ACCURACY_INDEX].textContent = "-";
@@ -179,17 +186,17 @@
 
         const data = await response.json();
 
-        if(data.error) {
+        if (data.error) {
             console.error(data.error);
             return;
         }
 
-        for(let i = 0; i < rows.length; i++) {
+        for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const cells = row.getElementsByTagName('td');
             const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
             let completion_percentage = data.find(d => d.user_id == user_id)?.completion ?? "-";
-            if(completion_percentage !== "-") {
+            if (completion_percentage !== "-") {
                 //cap it at 100%, used profile stats for SS,S,A, which may be different from osu!alt
                 completion_percentage = Math.min(completion_percentage, 100);
                 completion_percentage = completion_percentage.toFixed(2);
@@ -207,8 +214,6 @@
         try {
             user_id = fixedUrl.match(/\/users\/(\d+)/)[1];
         } catch (e) { }
-
-
         if (!user_id) {
             return;
         }
@@ -222,6 +227,10 @@
         }
 
         await WaitForElement(PAGE_ELEMENT_WAIT_LIST.user_page);
+
+        //get username (first span element in profile-info__name)
+        const username = document.getElementsByClassName("profile-info__name")[0].getElementsByTagName("span")[0].textContent;
+
         // const startTime = new Date().getTime();
         // while (document.getElementsByClassName("profile-info__name").length == 0) {
         //     if (new Date().getTime() - startTime > 5000) {
@@ -230,22 +239,20 @@
         //     await new Promise(r => setTimeout(r, 500));
         // }
 
-        const data = await getUserData(user_id);
+        const data = await getUserData(user_id, username, mode);
 
         if (data.user_data?.inspector_user?.clan_member && !data.user_data?.inspector_user?.clan_member?.pending) {
             setOrCreateUserClanTagElement(data.user_data.inspector_user.clan_member.clan);
             setOrCreateUserClanBannerElement(data.user_data.inspector_user.clan_member.clan);
         }
 
-        if(data.stats_data?.completionists) {
+        if (data.stats_data?.completionists) {
             setCompletionistBadges(data.stats_data.completionists);
         }
 
-        if (mode === "osu") {
-            if (data.stats_data) {
-                setOrCreateStatisticsElements(data.stats_data);
-                setNewRankGraph(data.stats_data.scoreRankHistory, data.stats_data.scoreRank);
-            }
+        if (data.stats_data) {
+            setOrCreateStatisticsElements(data.stats_data);
+            setNewRankGraph(data.stats_data.scoreRankHistory, data.stats_data.scoreRank);
         }
     }
 
@@ -280,23 +287,21 @@
         return data;
     }
 
-    async function getUserData(user_id) {
-        //first we get /users/full/{user_id}
-        const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
-        const response = await fetch(url, {
-            headers: {
-                "Access-Control-Allow-Origin": "*"
-            }
-        });
-        const data = await response.json();
-
-        if (data.error) {
-            console.error(data.error);
-            return;
+    async function getUserData(user_id, username, mode = "osu") {
+        const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
+        let data = null;
+        if(modeIndex===0){
+            const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
+            const response = await fetch(url, {
+                headers: {
+                    "Access-Control-Allow-Origin": "*"
+                }
+            });
+            data = await response.json();
         }
 
         //then we get /users/stats/{user_id}
-        const response2 = await fetch(SCORE_INSPECTOR_API + "users/stats/" + user_id, {
+        const response2 = await fetch(SCORE_INSPECTOR_API + `users/stats/${user_id}?mode=${modeIndex}&username=${username}`, {
             headers: {
                 "Access-Control-Allow-Origin": "*"
             }
@@ -311,14 +316,9 @@
         const data3 = await response3.json();
 
         let completionist_data = [];
-        if(data3 && !data3.error) {
+        if (data3 && !data3.error) {
             //find all where osu_id == user_id
             completionist_data = data3.filter(c => c.osu_id == user_id);
-        }
-
-        if (data2.error) {
-            console.error(data2.error);
-            return;
         }
 
         const _stats = {
@@ -331,7 +331,7 @@
     }
 
     function setCompletionistBadges(badge_data) {
-        if(!badge_data || badge_data.length === 0) {
+        if (!badge_data || badge_data.length === 0) {
             return;
         }
 
@@ -383,8 +383,8 @@
         });
 
         const badges = Array.from(badgeArea.children);
-        if(badges && badges.length > 1) {
-            for(let i = badges.length - 1; i > 0; i--) {
+        if (badges && badges.length > 1) {
+            for (let i = badges.length - 1; i > 0; i--) {
                 const current = badges[i];
                 const previous = badges[i - 1];
 
@@ -397,7 +397,7 @@
                 const datePrevious = previous_data_html_title.match(/<div class='profile-badges__date'>(.*?)<\/div>/)[1] ?? "";
 
                 //if previous is older than current, swap them
-                if(new Date(datePrevious) < new Date(dateCurrent)) {
+                if (new Date(datePrevious) < new Date(dateCurrent)) {
                     badgeArea.insertBefore(current, previous);
                 }
             }
@@ -420,7 +420,16 @@
                 var div = document.createElement("div");
                 div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
                 b.appendChild(div);
-                const rankText = document.createTextNode(Number(data[rank.toLowerCase()]).toLocaleString());
+                let rankText = null;
+                if (data[rank.toLowerCase()] && !isNaN(data[rank.toLowerCase()])) {
+                    rankText = document.createTextNode(Number(data[rank.toLowerCase()]).toLocaleString());
+                } else {
+                    rankText = document.createTextNode('-');
+
+                    //add a tooltip to explain the rank is not available
+                    b.setAttribute("data-html-title", `<div>Data not available</div>`);
+                    b.setAttribute("title", "");
+                }
                 b.appendChild(rankText);
                 parent.appendChild(b);
             }
@@ -445,7 +454,7 @@
         var clearsDisplay = getValueDisplay("Clears", Number(data.clears).toLocaleString());
         profile_detail__values.appendChild(clearsDisplay);
 
-        var completionDisplay = getValueDisplay("Completion", `${(data.completion ?? 0).toFixed(2)}%`);
+        var completionDisplay = getValueDisplay("Completion", !isNaN(data.clears) ? `${(data.completion ?? 0).toFixed(2)}%` : "NaN");
         profile_detail__values.appendChild(completionDisplay);
 
         var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s ?? 0).toLocaleString());
@@ -463,7 +472,13 @@
         div.appendChild(labelDiv);
         var valueDiv = document.createElement("div");
         valueDiv.className = "value-display__value";
-        valueDiv.textContent = value;
+        if (value === 'NaN') {
+            valueDiv.textContent = '-';
+            div.setAttribute("data-html-title", `<div>Data not available</div>`);
+            div.setAttribute("title", "");
+        } else {
+            valueDiv.textContent = value;
+        }
         div.appendChild(valueDiv);
         return div;
     }
