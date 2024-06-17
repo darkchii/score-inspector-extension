@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-17.9
+// @version      2024-06-17.10
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -58,18 +58,39 @@
 
     //finds all usernames on the page and adds clan tags to them
     async function runUsernames() {
-        //wait 1 second for the page to load
-        await new Promise(r => setTimeout(r, 1000));
-        const usercards = document.getElementsByClassName("js-usercard");
-        const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
-        const clan_data = await getUsersClans(user_ids);
+        const _func = async () => {
+            await new Promise(r => setTimeout(r, 1000));
+            if (window.location.href.includes("/beatmapsets/")) {
+                await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
+            }
+            const usercards = document.getElementsByClassName("js-usercard");
+            const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
+            //unique user ids
+            const clan_data = await getUsersClans(user_ids.filter((v, i, a) => a.indexOf(v) === i));
 
-        modifyJsUserCards(clan_data);
+            modifyJsUserCards(clan_data);
+        }
+        await _func();
+
+        if (window.location.href.includes("/beatmapsets/")) {
+            const observer = new MutationObserver((mutationsList, observer) => {
+                for (let mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        if (mutation.target.classList.contains("beatmapset-scoreboard__main")) {
+                            _func();
+                        }
+                    }
+                }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
     }
 
     function modifyJsUserCards(clan_data) {
-        //find all elements that CONTAINS class "js-usercard"
-        const usercards = document.querySelectorAll("[class*='js-usercard']");
+        let usercards = document.querySelectorAll("[class*='js-usercard']");
+        //filter out with class "comment__avatar"
+        usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
 
         for (let i = 0; i < usercards.length; i++) {
             //get the user id from the data-user-id attribute
@@ -81,7 +102,7 @@
             }
 
             //if clan tag already exists, skip
-            if (document.getElementById(`inspector_user_tag_${user_id}`)) {
+            if (document.getElementById(`inspector_user_tag_${user_id}_${i}`)) {
                 continue;
             }
 
@@ -100,7 +121,12 @@
             //force single line
             clanTag.style.whiteSpace = "nowrap";
             //set id
-            clanTag.id = `inspector_user_tag_${user_id}`
+            clanTag.id = `inspector_user_tag_${user_id}_${i}`;
+
+            //if usercard has class "beatmap-scoreboard-table__cell-content" along with it, add whitespace-width padding
+            if (usercards[i].classList.contains("beatmap-scoreboard-table__cell-content")) {
+                clanTag.style.paddingRight = "5px";
+            }
 
             //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
             const usercardLink = usercards[i].getElementsByClassName("user-card-brick__link")[0];
@@ -293,7 +319,7 @@
     async function getUserData(user_id, username, mode = "osu") {
         const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
         let data = null;
-        if(modeIndex===0){
+        if (modeIndex === 0) {
             const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
             const response = await fetch(url, {
                 headers: {
