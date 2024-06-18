@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-17.10
+// @version      2024-06-17.12
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -93,6 +93,50 @@
         usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
         //filter out with child class "avatar avatar--guest avatar--beatmapset"
         usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
+
+        if(window.location.href.includes("/rankings/")) {
+            //check if "ranking-page-table__user-link" have a div as first child
+            const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
+            const userLinksArray = Array.from(userLinks);
+
+            let uses_region_flags = false;
+            //if the first child is a div, and any has more than 1 child inside the div, then it uses region flags
+            uses_region_flags = userLinksArray.some(link => link.children[0].tagName === "DIV" && link.children[0].children.length > 1);
+
+            //if we use region flags, we append a fake one for divs that only have 1 child, to fill the gap
+            //basically duplicate the first child, as a test
+            if(uses_region_flags) {
+                usercards = usercards.map((card, i) => {
+                    const userLink = userLinksArray[i];
+                    if(userLink){
+                        //if first element is A with "country" somewhere in the url, create a div at index 0, and move the A into it
+                        if(userLink.children[0].tagName === "A" && userLink.children[0].href.includes("country")) {
+                            //create a div at index 0
+                            const div = document.createElement("div");
+                            //move div into it
+                            div.appendChild(userLink.children[0]);
+                            //move div to index 1
+                            userLink.insertBefore(div, userLink.children[0]);
+    
+                        }
+    
+                        if(userLink.children[0].tagName === "DIV" && userLink.children[0].children.length === 1) {
+                            const cloned = userLink.children[0].children[0].cloneNode(true);
+                            userLink.children[0].appendChild(cloned);
+    
+                            //add display: inline-block to both children
+                            userLink.children[0].children[0].style.display = "inline-block";
+                            userLink.children[0].children[1].style.display = "inline-block";
+                            //margin-left 4px to the second child
+                            userLink.children[0].children[1].style.marginLeft = "4px";
+                            //opacity 0 to second child
+                            userLink.children[0].children[1].style.opacity = "0";
+                        }
+                    }
+                    return card;
+                });
+            }
+        }
 
         for (let i = 0; i < usercards.length; i++) {
             //get the user id from the data-user-id attribute
