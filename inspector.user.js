@@ -91,6 +91,8 @@
         let usercards = document.querySelectorAll("[class*='js-usercard']");
         //filter out with class "comment__avatar"
         usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
+        //filter out with child class "avatar avatar--guest avatar--beatmapset"
+        usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
 
         for (let i = 0; i < usercards.length; i++) {
             //get the user id from the data-user-id attribute
@@ -631,7 +633,7 @@
         });
 
         ppRankData = pp_ranks_filled;
-        scoreRankData = cloned_rank_history;
+        scoreRankData = (cloned_rank_history && cloned_rank_history.length>2) ? cloned_rank_history : null;
 
         //find with class "line-chart line-chart--profile-page"
         const lineChart = document.getElementsByClassName("profile-detail__chart")[0];
