@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-17.12
+// @version      2024-06-19.14
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -58,33 +58,51 @@
 
     //finds all usernames on the page and adds clan tags to them
     async function runUsernames() {
+        let isWorking = false;
         const _func = async () => {
-            await new Promise(r => setTimeout(r, 1000));
-            if (window.location.href.includes("/beatmapsets/")) {
-                await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
+            if (isWorking) {
+                return;
             }
-            const usercards = document.getElementsByClassName("js-usercard");
-            const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
-            //unique user ids
-            const clan_data = await getUsersClans(user_ids.filter((v, i, a) => a.indexOf(v) === i));
-
-            modifyJsUserCards(clan_data);
+            isWorking = true;
+            try{
+                await new Promise(r => setTimeout(r, 1000));
+                if (window.location.href.includes("/beatmapsets/")) {
+                    await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
+                }
+                const usercards = document.getElementsByClassName("js-usercard");
+                const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
+                //unique user ids
+                const clan_data = await getUsersClans(user_ids.filter((v, i, a) => a.indexOf(v) === i));
+    
+                if(clan_data && Array.isArray(clan_data) && clan_data.length > 0){
+                    modifyJsUserCards(clan_data);
+                }
+            }catch(err){
+                console.error(err);
+            }
+            isWorking = false;
         }
         await _func();
 
-        if (window.location.href.includes("/beatmapsets/")) {
-            const observer = new MutationObserver((mutationsList, observer) => {
-                for (let mutation of mutationsList) {
-                    if (mutation.type === 'childList') {
+        const observer = new MutationObserver((mutationsList, observer) => {
+            for (let mutation of mutationsList) {
+                if (mutation.type === 'childList') {
+                    if (window.location.href.includes("/beatmapsets/")) {
                         if (mutation.target.classList.contains("beatmapset-scoreboard__main")) {
                             _func();
                         }
                     }
-                }
-            });
 
-            observer.observe(document.body, { childList: true, subtree: true });
-        }
+                    if (window.location.href.includes("/community/chat")) {
+                        if (mutation.target.classList.contains("chat-conversation")) {
+                            _func();
+                        }
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
     function modifyJsUserCards(clan_data) {
@@ -93,8 +111,10 @@
         usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
         //filter out with child class "avatar avatar--guest avatar--beatmapset"
         usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
+        //filter out with parent class "chat-conversation__new-chat-avatar"
+        usercards = usercards.filter(card => !card.parentElement.classList.contains("chat-conversation__new-chat-avatar"));
 
-        if(window.location.href.includes("/rankings/")) {
+        if (window.location.href.includes("/rankings/")) {
             //check if "ranking-page-table__user-link" have a div as first child
             const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
             const userLinksArray = Array.from(userLinks);
@@ -105,25 +125,25 @@
 
             //if we use region flags, we append a fake one for divs that only have 1 child, to fill the gap
             //basically duplicate the first child, as a test
-            if(uses_region_flags) {
+            if (uses_region_flags) {
                 usercards = usercards.map((card, i) => {
                     const userLink = userLinksArray[i];
-                    if(userLink){
+                    if (userLink) {
                         //if first element is A with "country" somewhere in the url, create a div at index 0, and move the A into it
-                        if(userLink.children[0].tagName === "A" && userLink.children[0].href.includes("country")) {
+                        if (userLink.children[0].tagName === "A" && userLink.children[0].href.includes("country")) {
                             //create a div at index 0
                             const div = document.createElement("div");
                             //move div into it
                             div.appendChild(userLink.children[0]);
                             //move div to index 1
                             userLink.insertBefore(div, userLink.children[0]);
-    
+
                         }
-    
-                        if(userLink.children[0].tagName === "DIV" && userLink.children[0].children.length === 1) {
+
+                        if (userLink.children[0].tagName === "DIV" && userLink.children[0].children.length === 1) {
                             const cloned = userLink.children[0].children[0].cloneNode(true);
                             userLink.children[0].appendChild(cloned);
-    
+
                             //add display: inline-block to both children
                             userLink.children[0].children[0].style.display = "inline-block";
                             userLink.children[0].children[1].style.display = "inline-block";
@@ -139,6 +159,7 @@
         }
 
         for (let i = 0; i < usercards.length; i++) {
+            if(!clan_data || clan_data.length === 0) return;
             //get the user id from the data-user-id attribute
             const user_id = usercards[i].getAttribute("data-user-id");
             const user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
@@ -179,6 +200,13 @@
             if (usercardLink) {
                 clanTag.style.marginRight = "5px";
                 usercardLink.insertBefore(clanTag, usercardLink.childNodes[1]);
+                //if usercard has parent with class "chat-message-group__sender"
+            } else if (usercards[i].parentElement.classList.contains("chat-message-group__sender")) {
+                const parent = usercards[i].parentElement;
+                //find child in parent with class "chat-message-group__username"
+                const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
+                //insert clan tag in usernameElement before the text
+                usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
             } else {
                 usercards[i].insertBefore(clanTag, usercards[i].childNodes[0]);
             }
@@ -341,25 +369,57 @@
         }
     }
 
+    let _userClansCache = [];
     async function getUsersClans(user_ids) {
-        if (!user_ids || user_ids.length === 0) {
-            return [];
-        }
-        const url = SCORE_INSPECTOR_API + "clans/user/" + user_ids.join(",");
-        const response = await fetch(url, {
-            headers: {
-                "Access-Control-Allow-Origin": "*"
+        // //first get all the cached users
+        let cached_users = [];
+        if (_userClansCache.length > 0) {
+            for (let i = 0; i < user_ids.length; i++) {
+                const user = _userClansCache.find(c => c.osu_id == user_ids[i]);
+                if (user) {
+                    cached_users.push(user);
+                }
             }
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            console.error(data.error);
-            return [];
         }
 
-        return data;
+        // filter out the cached users from the user_ids
+        if (cached_users.length > 0) {
+            user_ids = user_ids.filter(id => !cached_users.find(c => c.osu_id == id));
+        }
+
+        let uncached_users = [];
+        if (user_ids.length > 0) {
+            const url = SCORE_INSPECTOR_API + "clans/user/" + user_ids.join(",");
+            const response = await fetch(url, {
+                headers: {
+                    "Access-Control-Allow-Origin": "*"
+                }
+            });
+
+            const data = await response.json();
+
+            if (!data || data.error) {
+                console.error(data?.error);
+                uncached_users = [];
+            } else {
+                uncached_users = JSON.parse(JSON.stringify(data));
+            }
+        }
+
+        //add the uncached users to the cache if they are not already in it (async might have race conditions, we don't worry about it)
+
+        const merged_data = [...cached_users, ...uncached_users];
+
+        //push to cache if not already in it
+        if (uncached_users?.length > 0) {
+            uncached_users.forEach(u => {
+                if (!_userClansCache.find(c => c.osu_id == u.osu_id)) {
+                    _userClansCache.push(u);
+                }
+            });
+        }
+
+        return merged_data;
     }
 
     async function getUserData(user_id, username, mode = "osu") {
@@ -677,7 +737,7 @@
         });
 
         ppRankData = pp_ranks_filled;
-        scoreRankData = (cloned_rank_history && cloned_rank_history.length>2) ? cloned_rank_history : null;
+        scoreRankData = (cloned_rank_history && cloned_rank_history.length > 2) ? cloned_rank_history : null;
 
         //find with class "line-chart line-chart--profile-page"
         const lineChart = document.getElementsByClassName("profile-detail__chart")[0];
