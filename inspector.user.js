@@ -64,7 +64,7 @@
                 return;
             }
             isWorking = true;
-            try{
+            try {
                 await new Promise(r => setTimeout(r, 1000));
                 if (window.location.href.includes("/beatmapsets/")) {
                     await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
@@ -73,11 +73,11 @@
                 const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
                 //unique user ids
                 const clan_data = await getUsersClans(user_ids.filter((v, i, a) => a.indexOf(v) === i));
-    
-                if(clan_data && Array.isArray(clan_data) && clan_data.length > 0){
+
+                if (clan_data && Array.isArray(clan_data) && clan_data.length > 0) {
                     modifyJsUserCards(clan_data);
                 }
-            }catch(err){
+            } catch (err) {
                 console.error(err);
             }
             isWorking = false;
@@ -159,7 +159,7 @@
         }
 
         for (let i = 0; i < usercards.length; i++) {
-            if(!clan_data || clan_data.length === 0) return;
+            if (!clan_data || clan_data.length === 0) return;
             //get the user id from the data-user-id attribute
             const user_id = usercards[i].getAttribute("data-user-id");
             const user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
@@ -425,15 +425,13 @@
     async function getUserData(user_id, username, mode = "osu") {
         const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
         let data = null;
-        if (modeIndex === 0) {
-            const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
-            const response = await fetch(url, {
-                headers: {
-                    "Access-Control-Allow-Origin": "*"
-                }
-            });
-            data = await response.json();
-        }
+        const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
+        const response = await fetch(url, {
+            headers: {
+                "Access-Control-Allow-Origin": "*"
+            }
+        });
+        data = await response.json();
 
         //then we get /users/stats/{user_id}
         const response2 = await fetch(SCORE_INSPECTOR_API + `users/stats/${user_id}?mode=${modeIndex}&username=${username}`, {
