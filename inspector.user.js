@@ -496,7 +496,7 @@
                 div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
                 b.appendChild(div);
                 let rankText = null;
-                if (data[rank.toLowerCase()] && !isNaN(data[rank.toLowerCase()])) {
+                if (data[rank.toLowerCase()] !== undefined && !isNaN(data[rank.toLowerCase()])) {
                     rankText = document.createTextNode(Number(data[rank.toLowerCase()]).toLocaleString());
                 } else {
                     rankText = document.createTextNode('-');
