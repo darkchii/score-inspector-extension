@@ -19,7 +19,7 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 4. Once installed, the userscript will be active and ready to use.
 
 ## TODO
-- Show clantags everywhere on the site (leaderboards, friends list... etc)
+- ~~Show clantags everywhere on the site (leaderboards, friends list... etc)~~ (Added in 2024-06-18.x, multiple updates)
 - Remember selected rank graph
 - A notification if user has no osu!alt statistics available
 - ~~Add completion badges to those who don't have it~~ (Added in 2024-06-16.6)
