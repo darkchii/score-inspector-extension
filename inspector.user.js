@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-19.15
+// @version      2024-06-20.16
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -735,6 +735,12 @@
         });
 
         ppRankData = pp_ranks_filled;
+
+        //if no pp rank data, or last pp rank is 0, then return;
+        if(!ppRankData || ppRankData.length === 0 || ppRankData[0].rank === 0) {
+            return;
+        }
+
         scoreRankData = (cloned_rank_history && cloned_rank_history.length > 2) ? cloned_rank_history : null;
 
         //find with class "line-chart line-chart--profile-page"
