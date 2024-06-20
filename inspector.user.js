@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-20.16
+// @version      2024-06-20.17
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -869,6 +869,10 @@
                         hoverBorderWidth: 5
                     }
                 },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
             }
         };
 
