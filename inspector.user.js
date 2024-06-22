@@ -8,6 +8,8 @@
 // @icon         https://raw.githubusercontent.com/darkchii/score-inspector-extension/main/icon48.png
 // @noframes
 // @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0
 // @downloadURL  https://github.com/darkchii/score-inspector-extension/raw/main/inspector.user.js
@@ -39,6 +41,14 @@
         "fruits",
         "mania"
     ]
+
+    const GRAPHS = [
+        "Performance",
+        "Score"
+    ]
+
+    // let CURRENT_GRAPH = 'Performance';
+    let CURRENT_GRAPH = GM_getValue("inspector_current_graph", "Performance");
 
     document.addEventListener("turbolinks:load", async function () {
         await run();
@@ -615,22 +625,20 @@
         var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s ?? 0).toLocaleString());
         profile_detail__values.appendChild(top50sDisplay);
 
-        var globalSSrankDisplay = getValueDisplay("SS Ranking", Number(data.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.global_ss_rank_highest ?? 0).toLocaleString()} on ${
-            data.global_ss_rank_highest_date ? new Date(data.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            }) : "N/A"   
-        }`);
+        var globalSSrankDisplay = getValueDisplay("SS Ranking", Number(data.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.global_ss_rank_highest_date ? new Date(data.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        }) : "N/A"
+            }`);
         profile_detail__rank.appendChild(globalSSrankDisplay);
 
-        var countrySSrankDisplay = getValueDisplay("Country SS Ranking", Number(data.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.country_ss_rank_highest ?? 0).toLocaleString()} on ${
-            data.country_ss_rank_highest_date ? new Date(data.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            }) : "N/A"
-        }`);
+        var countrySSrankDisplay = getValueDisplay("Country SS Ranking", Number(data.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.country_ss_rank_highest_date ? new Date(data.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        }) : "N/A"
+            }`);
         profile_detail__rank.appendChild(countrySSrankDisplay);
 
         profile_detail__values.style.rowGap = "5px";
@@ -646,7 +654,7 @@
         var valueDiv = document.createElement("div");
         valueDiv.className = "value-display__value";
         if (value === 'NaN') {
-            valueDiv.textContent = `${is_rank?'#':''}-`;
+            valueDiv.textContent = `${is_rank ? '#' : ''}-`;
             div.setAttribute("data-html-title", `<div>Data not available</div>`);
             div.setAttribute("title", "");
         } else {
@@ -804,31 +812,45 @@
             chartOwner.style.marginTop = "10px";
             chartOwner.style.marginBottom = "30px";
 
-            //Toggle link
-            const toggleLink = document.createElement("a");
-            toggleLink.href = "javascript:void(0)";
-            toggleLink.textContent = "Toggle PP Rank";
-            toggleLink.style.color = "#fc2";
-            toggleLink.style.textDecoration = "underline";
-            toggleLink.style.fontSize = "12px";
-            toggleLink.style.marginTop = "5px";
-            toggleLink.style.display = "block";
-            toggleLink.onclick = () => {
-                if (activeChart === 'pp') {
-                    updateGraph(scoreRankData, "Score Rank");
-                    activeChart = 'score';
-                    toggleLink.textContent = "Go to performance rank";
-                } else {
-                    updateGraph(ppRankData, "PP Rank");
-                    activeChart = 'pp';
-                    toggleLink.textContent = "Go to score rank";
+            const getRankSet = (graph) => {
+                switch (graph) {
+                    case "Performance":
+                        return ppRankData;
+                    case "Score":
+                        return scoreRankData;
                 }
             }
-            toggleLink.textContent = "Go to score rank";
 
+            const toggleLink = document.createElement("div");
+            const updateLinks = () => {
+                //remove all children
+                while (toggleLink.firstChild) {
+                    toggleLink.removeChild(toggleLink.firstChild);
+                }
+                GRAPHS.forEach(graph => {
+                    let span = document.createElement(CURRENT_GRAPH === graph ? "span" : "a");
+                    span.style.color = CURRENT_GRAPH !== graph ? "#fc2" : "white";
+                    if(CURRENT_GRAPH !== graph){
+                        span.href = "javascript:void(0)";
+                        span.style.textDecoration = "underline";
+                        span.onclick = () => {
+                            updateGraph(getRankSet(graph), graph);
+                            CURRENT_GRAPH = graph;
+                            GM_setValue("inspector_current_graph", CURRENT_GRAPH);
+                            updateLinks();
+                        }
+                    }
+                    span.style.fontSize = "12px";
+                    span.style.marginRight = "5px";
+                    span.textContent = graph;
+                    toggleLink.appendChild(span);
+                });
+            }
+            updateLinks();
 
             chartParent.insertBefore(chartOwner, chartParent.children[1]);
-            chartOwner.appendChild(toggleLink);
+            //insert the toggle after the chart
+            chartParent.insertBefore(toggleLink, chartParent.children[2]);
 
             //completely REMOVES the link if there is no score rank data
             if (!scoreRankData || scoreRankData.length === 0) {
@@ -838,6 +860,14 @@
         }
 
         updateGraph(ppRankData, "PP Rank");
+        switch (CURRENT_GRAPH) {
+            case "Performance":
+                updateGraph(ppRankData, "PP Rank");
+                break;
+            case "Score":
+                updateGraph(scoreRankData, "Score Rank");
+                break;
+        }
     }
 
     function updateGraph(rank_data, rank_type) {
