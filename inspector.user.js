@@ -7,7 +7,7 @@
 // @match        https://osu.ppy.sh/*
 // @icon         https://raw.githubusercontent.com/darkchii/score-inspector-extension/main/icon48.png
 // @noframes
-// @grant none
+// @grant        GM_addStyle
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0
 // @downloadURL  https://github.com/darkchii/score-inspector-extension/raw/main/inspector.user.js
@@ -50,6 +50,25 @@
     }
 
     async function run() {
+
+        //if userpage
+        if (window.location.href.includes("/users/")) {
+            //override css font-size for class "value-display__value"
+            GM_addStyle(`
+                .value-display__value {
+                    font-size: 20px;
+                }
+
+                .value-display__label {
+                    font-size: 12px;
+                }
+
+                .profile-detail__values {
+                    gap: 10px;
+                }
+            `);
+        }
+
         await runUserPage();
         await runUsernames();
         await runScoreRankCompletionPercentages();
@@ -582,6 +601,9 @@
 
         //grades done
 
+        console.log(data);
+
+        const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
         const profile_detail__values = document.getElementsByClassName("profile-detail__values")[1];
 
         var clearsDisplay = getValueDisplay("Clears", Number(data.clears).toLocaleString());
@@ -593,12 +615,30 @@
         var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s ?? 0).toLocaleString());
         profile_detail__values.appendChild(top50sDisplay);
 
+        var globalSSrankDisplay = getValueDisplay("SS Ranking", Number(data.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.global_ss_rank_highest ?? 0).toLocaleString()} on ${
+            data.global_ss_rank_highest_date ? new Date(data.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }) : "N/A"   
+        }`);
+        profile_detail__rank.appendChild(globalSSrankDisplay);
+
+        var countrySSrankDisplay = getValueDisplay("Country SS Ranking", Number(data.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.country_ss_rank_highest ?? 0).toLocaleString()} on ${
+            data.country_ss_rank_highest_date ? new Date(data.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }) : "N/A"
+        }`);
+        profile_detail__rank.appendChild(countrySSrankDisplay);
+
         profile_detail__values.style.rowGap = "5px";
     }
 
-    function getValueDisplay(label, value) {
+    function getValueDisplay(label, value, is_rank = false, tooltip = null) {
         var div = document.createElement("div");
-        div.className = "value-display value-display--plain";
+        div.className = `value-display value-display--${is_rank ? 'rank' : 'plain'}`;
         var labelDiv = document.createElement("div");
         labelDiv.className = "value-display__label";
         labelDiv.textContent = label;
@@ -606,11 +646,15 @@
         var valueDiv = document.createElement("div");
         valueDiv.className = "value-display__value";
         if (value === 'NaN') {
-            valueDiv.textContent = '-';
+            valueDiv.textContent = `${is_rank?'#':''}-`;
             div.setAttribute("data-html-title", `<div>Data not available</div>`);
             div.setAttribute("title", "");
         } else {
-            valueDiv.textContent = value;
+            valueDiv.textContent = `${is_rank ? '#' : ''}${value}`;
+            if (tooltip) {
+                valueDiv.setAttribute("data-html-title", `<div>${tooltip}</div>`);
+                valueDiv.setAttribute("title", "");
+            }
         }
         div.appendChild(valueDiv);
         return div;
@@ -737,7 +781,7 @@
         ppRankData = pp_ranks_filled;
 
         //if no pp rank data, or last pp rank is 0, then return;
-        if(!ppRankData || ppRankData.length === 0 || ppRankData[0].rank === 0) {
+        if (!ppRankData || ppRankData.length === 0 || ppRankData[0].rank === 0) {
             return;
         }
 
