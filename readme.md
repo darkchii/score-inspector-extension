@@ -1,12 +1,21 @@
 ## About
 
 This userscript adds more stats to user profiles on the official osu! websites.
-
 For the foreseeable future, only the standard gamemode is supported, and only for users available on the osu!alt discord (typically top 10k + another 40k players, check the site below for more info)
 
 Also check out https://score.kirino.sh/!
 
 Works on most browsers. You may need to enable "Developer Mode" in extension settings in case Manifest V3 is used (mostly chromium browsers for now).
+
+## What does this extension do
+- [ALL] Integrate scores inspector clans into the website (adds tags to usernames, a banner to profile)
+- [ALL] Adds a score rank graph to top 10k score rank players (ALL MODES)
+- [STD] Adds global and country SS ranking to the array of other ranks displayed (STANDARD ONLY)
+- [STD] Adds total clears and B/C/D grade counts to profiles (STANDARD ONLY)
+- [STD] Adds completion percentage to profile and score rank leaderboards (in place of Accuracy percentage) (STANDARD ONLY)
+- [ALL] Adds Top 50s amount (ALL MODES)
+
+*Score rank history started in August 2023 for standard, and in June 2024 for other modes.*
 
 ## Installation
 
