@@ -6,6 +6,8 @@ For the foreseeable future, only the standard gamemode is supported, and only fo
 
 Also check out https://score.kirino.sh/!
 
+Works on most browsers. You may need to enable "Developer Mode" in extension settings in case Manifest V3 is used (mostly chromium browsers for now).
+
 ## Installation
 
 To install the Tampermonkey userscript from the provided GitHub link, follow these steps:
@@ -20,7 +22,8 @@ To install the Tampermonkey userscript from the provided GitHub link, follow the
 
 ## TODO
 - ~~Show clantags everywhere on the site (leaderboards, friends list... etc)~~ (Added in 2024-06-18.x, multiple updates)
-- Remember selected rank graph
+- ~~Remember selected rank graph~~ (Added in 2024-06-22.20)
+- ~~Global and Country SS ranking~~ (Added in 2024-06-22.20)
 - A notification if user has no osu!alt statistics available
 - ~~Add completion badges to those who don't have it~~ (Added in 2024-06-16.6)
 
