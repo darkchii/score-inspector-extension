@@ -9,11 +9,11 @@ Works on most browsers. You may need to enable "Developer Mode" in extension set
 
 ## What does this extension do
 - [ALL] Integrate scores inspector clans into the website (adds tags to usernames, a banner to profile)
-- [ALL] Adds a score rank graph to top 10k score rank players (ALL MODES)
-- [STD] Adds global and country SS ranking to the array of other ranks displayed (STANDARD ONLY)
-- [STD] Adds total clears and B/C/D grade counts to profiles (STANDARD ONLY)
-- [STD] Adds completion percentage to profile and score rank leaderboards (in place of Accuracy percentage) (STANDARD ONLY)
-- [ALL] Adds Top 50s amount (ALL MODES)
+- [ALL] Adds a score rank graph to top 10k score rank players
+- [STD] Adds global and country SS ranking to the array of other ranks displayed
+- [STD] Adds total clears and B/C/D grade counts to profiles
+- [STD] Adds completion percentage to profile and score rank leaderboards (in place of Accuracy percentage)
+- [ALL] Adds Top 50s amount
 
 *Score rank history started in August 2023 for standard, and in June 2024 for other modes.*
 
