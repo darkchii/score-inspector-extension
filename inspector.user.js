@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-22.20
+// @version      2024-06-23.21
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -197,11 +197,6 @@
                 continue;
             }
 
-            //if clan tag already exists, skip
-            if (document.getElementById(`inspector_user_tag_${user_id}_${i}`)) {
-                continue;
-            }
-
             //get content of the element (the username)
             let username = usercards[i].textContent;
             //trim the username
@@ -217,7 +212,7 @@
             //force single line
             clanTag.style.whiteSpace = "nowrap";
             //set id
-            clanTag.id = `inspector_user_tag_${user_id}_${i}`;
+            clanTag.classList.add("inspector_user_tag");
 
             //if usercard has class "beatmap-scoreboard-table__cell-content" along with it, add whitespace-width padding
             if (usercards[i].classList.contains("beatmap-scoreboard-table__cell-content")) {
@@ -227,16 +222,29 @@
             //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
             const usercardLink = usercards[i].getElementsByClassName("user-card-brick__link")[0];
             if (usercardLink) {
+                //first check if one exists already
+                if (usercardLink.getElementsByClassName("inspector_user_tag").length > 0) {
+                    continue;
+                }
                 clanTag.style.marginRight = "5px";
                 usercardLink.insertBefore(clanTag, usercardLink.childNodes[1]);
                 //if usercard has parent with class "chat-message-group__sender"
             } else if (usercards[i].parentElement.classList.contains("chat-message-group__sender")) {
+                //check if one exists already
+                if (usercards[i].parentElement.getElementsByClassName("inspector_user_tag").length > 0) {
+                    continue;
+                }
+
                 const parent = usercards[i].parentElement;
                 //find child in parent with class "chat-message-group__username"
                 const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
                 //insert clan tag in usernameElement before the text
                 usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
             } else {
+                //check if one exists already
+                if (usercards[i].getElementsByClassName("inspector_user_tag").length > 0) {
+                    continue;
+                }
                 usercards[i].insertBefore(clanTag, usercards[i].childNodes[0]);
             }
 
