@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-24.22
+// @version      2024-06-24.23
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -601,6 +601,22 @@
             }
         });
 
+        //for all XH, X, SH, S, A ranks, we set a tooltip display alt values
+        ["XH", "X", "SH", "S", "A"].forEach(rank => {
+            var rankElement = document.getElementsByClassName(`score-rank--${rank}`)[0];
+            if (rankElement) {
+                let _rank = rank.toLowerCase();
+                if(_rank==='xh') _rank = 'ssh';
+                if(_rank==='x') _rank = 'ss';
+                let val = Number(data[`alt_${_rank}_count`]).toLocaleString();
+                if(isNaN(Number(data[`alt_${_rank}_count`]))) val = 'Data not available';
+                rankElement.setAttribute("data-html-title", `
+                    osu!alt: ${val}
+                    `);
+                rankElement.setAttribute("title", "");
+            }
+        });
+
         //find the parent of score-rank--A
         var aParent = document.getElementsByClassName("score-rank--A")[0].parentNode;
 
@@ -622,7 +638,7 @@
 
         profile_detail__rank.style.gap = "10px";
 
-        var clearsDisplay = getValueDisplay("Clears", Number(data.clears).toLocaleString());
+        var clearsDisplay = getValueDisplay("Clears", Number(data.clears).toLocaleString(), false, `Profile clears: ${Number(data.profile_clears ?? 0).toLocaleString()}`);
         profile_detail__values.appendChild(clearsDisplay);
 
         var completionDisplay = getValueDisplay("Completion", !isNaN(data.clears) ? `${(data.completion ?? 0).toFixed(2)}%` : "NaN");
