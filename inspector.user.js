@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-23.21
+// @version      2024-06-24.22
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -65,16 +65,12 @@
         if (window.location.href.includes("/users/")) {
             //override css font-size for class "value-display__value"
             GM_addStyle(`
-                .value-display__value {
+                .value-display--rank .value-display__value {
                     font-size: 20px;
                 }
 
                 .value-display__label {
                     font-size: 12px;
-                }
-
-                .profile-detail__values {
-                    gap: 10px;
                 }
             `);
         }
@@ -623,6 +619,8 @@
 
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
         const profile_detail__values = document.getElementsByClassName("profile-detail__values")[1];
+
+        profile_detail__rank.style.gap = "10px";
 
         var clearsDisplay = getValueDisplay("Clears", Number(data.clears).toLocaleString());
         profile_detail__values.appendChild(clearsDisplay);
