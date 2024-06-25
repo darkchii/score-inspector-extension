@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-24.23
+// @version      2024-06-25.24
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -422,11 +422,16 @@
 
         let uncached_users = [];
         if (user_ids.length > 0) {
-            const url = SCORE_INSPECTOR_API + "clans/user/" + user_ids.join(",");
+            const url = SCORE_INSPECTOR_API + "clans/user";
             const response = await fetch(url, {
                 headers: {
-                    "Access-Control-Allow-Origin": "*"
-                }
+                    "Access-Control-Allow-Origin": "*",
+                    "Content-Type": "application/json"
+                },
+                method: "POST",
+                body: JSON.stringify({
+                    ids: user_ids
+                })
             });
 
             const data = await response.json();
