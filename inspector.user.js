@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-25.24
+// @version      2024-06-25.25
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -59,6 +59,56 @@
         'user_page': '.profile-info__name',
     }
 
+    const lb_page_nav_items = [
+        {
+            name: "performance",
+            attr: "performance",
+            link: "/rankings/osu/performance"
+        }, {
+            name: "score",
+            attr: "score",
+            link: "/rankings/osu/score"
+        }, {
+            name: "total ss",
+            attr: "total-ss",
+            link: "/rankings/osu/ss"
+        }, {
+            name: "country",
+            attr: "country",
+            link: "/rankings/osu/country"
+        }, {
+            name: "multiplayer",
+            attr: "multiplayer",
+            link: "/multiplayer/rooms/latest"
+        }, {
+            name: "seasons",
+            attr: "seasons",
+            link: "/seasons/latest"
+        }, {
+            name: "spotlights (old)",
+            attr: "spotlights",
+            link: "/ranking/osu/charts"
+        }, {
+            name: "kudosu",
+            attr: "kudosu",
+            link: "/rankings/kudosu"
+        }
+    ]
+
+    const MAX_SS_RANK_PAGE = 200;
+
+    const shortNum = (number) => {
+        const postfixes = ['', 'k', 'M', 'B', 't']
+        let count = 0
+        while (number >= 1000 && count < postfixes.length) {
+            number /= 1000
+            count++
+        }
+        //round number to 2 decimal places
+        number = Math.round(number * 100) / 100;
+        return number + postfixes[count];
+    }
+
     async function run() {
 
         //if userpage
@@ -75,11 +125,350 @@
             `);
         }
 
+        if (window.location.href.includes("/rankings/")) {
+            await handleLeaderboardPage();
+        }
+
         await runUserPage();
         await runUsernames();
         await runScoreRankCompletionPercentages();
     }
     run();
+
+    async function handleLeaderboardPage() {
+        //find ul with class "header-nav-v4 header-nav-v4--list"
+        const headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
+
+        if (window.location.href.includes("/rankings/osu/ss")) {
+
+            //set page title to "total ss (bullet) rankings | osu!"
+            document.title = "total ss • rankings | osu!";
+
+            const container = document.getElementsByClassName("osu-layout__section osu-layout__section--full")[0];
+            container.innerHTML = "";
+
+            const rankings_container = document.createElement("div");
+            rankings_container.classList.add("header-v4", "header-v4--rankings");
+            container.appendChild(rankings_container);
+
+            const rankings_header = document.createElement("div");
+            rankings_header.classList.add("header-v4__container", "header-v4__container--main");
+            rankings_container.appendChild(rankings_header);
+
+            const rankings_header_bg_container = document.createElement("div");
+            rankings_header_bg_container.classList.add("header-v4__bg-container");
+            rankings_header.appendChild(rankings_header_bg_container);
+
+            const rankings_header_bg_container_bg = document.createElement("div");
+            rankings_header_bg_container_bg.classList.add("header-v4__bg");
+            rankings_header_bg_container.appendChild(rankings_header_bg_container_bg);
+
+            const rankings_header_content = document.createElement("div");
+            rankings_header_content.classList.add("header-v4__content");
+            rankings_header.appendChild(rankings_header_content);
+
+            const rankings_header_content_title = document.createElement("div");
+            rankings_header_content_title.classList.add("header-v4__row", "header-v4__row--title");
+            rankings_header_content.appendChild(rankings_header_content_title);
+
+            const rankings_header_content_title_icon = document.createElement("div");
+            rankings_header_content_title_icon.classList.add("header-v4__icon");
+            rankings_header_content_title.appendChild(rankings_header_content_title_icon);
+
+            const rankings_header_content_title_text = document.createElement("div");
+            rankings_header_content_title_text.classList.add("header-v4__title");
+            rankings_header_content_title_text.textContent = "rankings";
+            rankings_header_content_title.appendChild(rankings_header_content_title_text);
+
+            const ranking_headers_container = document.createElement("div");
+            ranking_headers_container.classList.add("header-v4__container");
+            rankings_container.appendChild(ranking_headers_container);
+
+            const ranking_headers_content = document.createElement("div");
+            ranking_headers_content.classList.add("header-v4__content");
+            ranking_headers_container.appendChild(ranking_headers_content);
+
+            const ranking_headers_row = document.createElement("div");
+            ranking_headers_row.classList.add("header-v4__row", "header-v4__row--bar");
+            ranking_headers_content.appendChild(ranking_headers_row);
+
+            const ranking_headers_row_nav = document.createElement("ul");
+            ranking_headers_row_nav.classList.add("header-nav-v4", "header-nav-v4--list");
+            ranking_headers_row.appendChild(ranking_headers_row_nav);
+
+            const createHeaderItem = (item) => {
+                const li = document.createElement("li");
+                li.classList.add("header-nav-v4__item");
+
+                const a = document.createElement("a");
+                a.classList.add("header-nav-v4__link");
+
+                if (window.location.href.includes(item.link)) {
+                    a.classList.add("header-nav-v4__link--active");
+                }
+
+                a.href = item.link;
+                a.textContent = item.name;
+                a.setAttribute("data-content", item.attr);
+
+                li.appendChild(a);
+                return li;
+            }
+
+            lb_page_nav_items.forEach(item => {
+                ranking_headers_row_nav.appendChild(createHeaderItem(item));
+            });
+
+            const scores_container = document.createElement("div");
+            scores_container.classList.add("osu-page", "osu-page--generic");
+            scores_container.id = "scores";
+            container.appendChild(scores_container);
+
+            //get page from url query
+            let page = new URLSearchParams(window.location.search).get("page") ?? 1;
+            page = Number(page) || 1;
+
+            //first try to get data now
+            const fetch_url = `${SCORE_INSPECTOR_API}users/ss_rank/${page}`;
+            const response = await fetch(fetch_url, {
+                headers: {
+                    "Access-Control-Allow-Origin": "*",
+                }
+            });
+
+            let data = null;
+            try {
+                if (response.status !== 200) {
+                    throw new Error("An error occurred while fetching the data. Please try again later.");
+                }
+                data = await response.json();
+            } catch (e) {
+                scores_container.innerHTML = "An error occurred while fetching the data. Please try again later.";
+                return;
+            }
+
+            console.log(data);
+
+            const createPagination = (page) => {
+                const nav = document.createElement("nav");
+                nav.classList.add("pagination-v2");
+
+                const nav_prev_col = document.createElement("div");
+                nav_prev_col.classList.add("pagination-v2__col");
+
+                let nav_prev_span = null;
+                if (page === 1) {
+                    nav_prev_span = document.createElement("span");
+                    nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
+                } else {
+                    nav_prev_span = document.createElement("a");
+                    nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
+                    nav_prev_span.href = `/rankings/osu/ss?page=${page - 1}`;
+                }
+                const nav_prev_span_icon = document.createElement("i");
+                nav_prev_span_icon.classList.add("fas", "fa-angle-left");
+                nav_prev_span.appendChild(nav_prev_span_icon);
+                nav_prev_span.appendChild(document.createTextNode(" "));
+                const nav_prev_span_text = document.createElement("span");
+                nav_prev_span_text.textContent = "PREV";
+                nav_prev_span.appendChild(nav_prev_span_text);
+                nav_prev_col.appendChild(nav_prev_span);
+                nav.appendChild(nav_prev_col);
+
+                const nav_next_col = document.createElement("div");
+                nav_next_col.classList.add("pagination-v2__col");
+
+                const BUTTONS_BEFORE_CURRENT_PAGE = 2;
+                const BUTTONS_AFTER_CURRENT_PAGE = 2;
+
+                //1 and 200 are always shown
+                const _createPageButton = (_page, active = false) => {
+                    const li = document.createElement("li");
+                    li.classList.add("pagination-v2__item");
+
+                    let a = null;
+                    if (_page === page) {
+                        a = document.createElement("span");
+                    } else {
+                        a = document.createElement("a");
+                    }
+                    a.classList.add("pagination-v2__link");
+                    a.href = `/rankings/osu/ss?page=${_page}`;
+                    if (active) {
+                        a.classList.add("pagination-v2__link--active");
+                    }
+                    a.textContent = _page;
+
+                    li.appendChild(a);
+
+                    return li;
+                }
+
+                const pagination_items = document.createElement("div");
+                pagination_items.classList.add("pagination-v2__col", "pagination-v2__col--pages");
+                nav.appendChild(pagination_items);
+
+                //just loop between 1 and 200
+                for (let i = 1; i <= MAX_SS_RANK_PAGE; i++) {
+                    if (i === 1 || i === MAX_SS_RANK_PAGE || (i >= page - BUTTONS_BEFORE_CURRENT_PAGE && i <= page + BUTTONS_AFTER_CURRENT_PAGE)) {
+                        pagination_items.appendChild(_createPageButton(i, i === page));
+                    } else if (i === page - BUTTONS_BEFORE_CURRENT_PAGE - 1 || i === page + BUTTONS_AFTER_CURRENT_PAGE + 1) {
+                        const li = document.createElement("li");
+                        li.classList.add("pagination-v2__item");
+                        li.textContent = "...";
+                        pagination_items.appendChild(li);
+                    }
+                }
+
+                let nav_next_span = null;
+                if (page === MAX_SS_RANK_PAGE) {
+                    nav_next_span = document.createElement("span");
+                    nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
+                } else {
+                    nav_next_span = document.createElement("a");
+                    nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
+                    nav_next_span.href = `/rankings/osu/ss?page=${page + 1}`;
+                }
+                const nav_next_span_icon = document.createElement("i");
+                const nav_next_span_text = document.createElement("span");
+                nav_next_span_text.textContent = "NEXT";
+                nav_next_span.appendChild(nav_next_span_text);
+                nav_next_span.appendChild(document.createTextNode(" "));
+                nav_next_span_icon.classList.add("fas", "fa-angle-right");
+                nav_next_span.appendChild(nav_next_span_icon);
+                nav_next_col.appendChild(nav_next_span);
+                nav.appendChild(nav_next_col);
+
+                return nav;
+            }
+
+            scores_container.appendChild(createPagination(page));
+
+            //leaderboard, tbd
+            const ranking_page = document.createElement("div");
+            ranking_page.classList.add("ranking-page");
+            scores_container.appendChild(ranking_page);
+
+            const ranking_table = document.createElement("table");
+            ranking_table.classList.add("ranking-page-table");
+            ranking_page.appendChild(ranking_table);
+
+            const ranking_thead = document.createElement("thead");
+            ranking_table.appendChild(ranking_thead);
+
+            const _addTableHeaderItem = (text = '', is_focus = false, is_grade = false) => {
+                const th = document.createElement("th");
+                th.textContent = text;
+                th.classList.add("ranking-page-table__heading");
+                if (is_grade) {
+                    th.classList.add("ranking-page-table__heading--grade");
+                }
+                if (is_focus) {
+                    th.classList.add("ranking-page-table__heading--focused");
+                }
+                return th;
+            }
+
+            ranking_thead.appendChild(_addTableHeaderItem());
+            ranking_thead.appendChild(_addTableHeaderItem());
+            ranking_thead.appendChild(_addTableHeaderItem('Ranked Score'));
+            ranking_thead.appendChild(_addTableHeaderItem('SS', true, true));
+            ranking_thead.appendChild(_addTableHeaderItem('S', false, true));
+            ranking_thead.appendChild(_addTableHeaderItem('A', false, true));
+
+            const ranking_tbody = document.createElement("tbody");
+            ranking_table.appendChild(ranking_tbody);
+
+            const _addTableBodyRow = (data, i) => {
+                const tr = document.createElement("tr");
+                tr.classList.add("ranking-page-table__row");
+
+                const td_rank = document.createElement("td");
+                td_rank.classList.add("ranking-page-table__column", "ranking-page-table__rank");
+                td_rank.textContent = `#${i + 1 + (page - 1) * 50}`;
+                tr.appendChild(td_rank);
+
+                const td_user = document.createElement("td");
+                td_user.classList.add("ranking-page-table__column", "ranking-page-table__user");
+                const userLinkParent = document.createElement("div");
+                userLinkParent.classList.add("ranking-page-table__user-link");
+
+                const countryFlagUrl = document.createElement("a");
+                countryFlagUrl.href = `/rankings/osu/performance?country=${data.country_code}`;
+                countryFlagUrl.style.display = "inline-block";
+
+                const countryFlag = document.createElement("span");
+                countryFlag.classList.add("flag-country", "flag-country--medium");
+                countryFlag.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
+                countryFlag.setAttribute("title", data.country_name);
+                countryFlagUrl.appendChild(countryFlag);
+                userLinkParent.appendChild(countryFlagUrl);
+
+                const userLink = document.createElement("a");
+                userLink.classList.add("ranking-page-table__user-link-text", "js-usercard");
+                userLink.href = `/users/${data.user_id}`;
+                userLink.textContent = data.username;
+                userLink.setAttribute("data-user-id", data.user_id);
+                userLinkParent.appendChild(userLink);
+                td_user.appendChild(userLinkParent);
+                tr.appendChild(td_user);
+
+                const td_score = document.createElement("td");
+                td_score.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
+                const td_score_span = document.createElement("span");
+                td_score_span.textContent = shortNum(data.ranked_score);
+                td_score_span.setAttribute("data-html-title", data.ranked_score.toLocaleString());
+                td_score_span.setAttribute("title", "");
+                td_score.appendChild(td_score_span);
+                tr.appendChild(td_score);
+
+                const td_ss = document.createElement("td");
+                td_ss.classList.add("ranking-page-table__column");
+                td_ss.textContent = (data.ss_count + data.ssh_count).toLocaleString();
+                tr.appendChild(td_ss);
+
+                const td_s = document.createElement("td");
+                td_s.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
+                td_s.textContent = data.s_count.toLocaleString();
+                tr.appendChild(td_s);
+
+                const td_a = document.createElement("td");
+                td_a.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
+                td_a.textContent = data.a_count.toLocaleString();
+                tr.appendChild(td_a);
+
+                return tr;
+            }
+
+            data.forEach((d, i) => {
+                ranking_tbody.appendChild(_addTableBodyRow(d, i));
+            });
+
+            //another pagination at the bottom
+            scores_container.appendChild(createPagination(page));
+        } else {
+            //check if theres no element with data-content="total-ss"
+            if (!headerNav.querySelector("[data-content='total-ss']")) {
+                //at index 2, duplicate the element from index 1
+                const li = headerNav.getElementsByTagName("li")[1];
+                const liClone = li.cloneNode(true);
+                //insert liClone after li
+                headerNav.insertBefore(liClone, li.nextSibling);
+
+                const link = liClone.getElementsByTagName("a")[0];
+                link.href = "/rankings/osu/ss";
+
+                const titleSpan = link.getElementsByTagName("span")[0];
+                titleSpan.textContent = "total ss";
+                titleSpan.setAttribute("data-content", "total-ss");
+
+                //remove the '-active' part of the class
+                if (!window.location.href.includes("/rankings/osu/ss")) {
+                    link.classList.remove("header-nav-v4__link--active");
+                }
+            }
+        }
+    }
 
     //finds all usernames on the page and adds clan tags to them
     async function runUsernames() {
@@ -611,10 +1000,10 @@
             var rankElement = document.getElementsByClassName(`score-rank--${rank}`)[0];
             if (rankElement) {
                 let _rank = rank.toLowerCase();
-                if(_rank==='xh') _rank = 'ssh';
-                if(_rank==='x') _rank = 'ss';
+                if (_rank === 'xh') _rank = 'ssh';
+                if (_rank === 'x') _rank = 'ss';
                 let val = Number(data[`alt_${_rank}_count`]).toLocaleString();
-                if(isNaN(Number(data[`alt_${_rank}_count`]))) val = 'Data not available';
+                if (isNaN(Number(data[`alt_${_rank}_count`]))) val = 'Data not available';
                 rankElement.setAttribute("data-html-title", `
                     osu!alt: ${val}
                     `);
@@ -854,7 +1243,7 @@
                 while (toggleLink.firstChild) {
                     toggleLink.removeChild(toggleLink.firstChild);
                 }
-                if(!scoreRankData || scoreRankData.length === 0){
+                if (!scoreRankData || scoreRankData.length === 0) {
                     CURRENT_GRAPH = "Performance";
                 }
                 GRAPHS.forEach(graph => {
@@ -862,17 +1251,17 @@
                     const graphData = getRankSet(graph);
                     let span = document.createElement(CURRENT_GRAPH === graph ? "span" : "a");
                     span.style.color = CURRENT_GRAPH !== graph ? "#fc2" : "white";
-                    if(CURRENT_GRAPH !== graph){
+                    if (CURRENT_GRAPH !== graph) {
                         span.href = "javascript:void(0)";
                         span.style.textDecoration = "underline";
-                        if(graphData){
+                        if (graphData) {
                             span.onclick = () => {
                                 updateGraph(graphData, graph);
                                 CURRENT_GRAPH = graph;
                                 GM_setValue("inspector_current_graph", CURRENT_GRAPH);
                                 updateLinks();
                             }
-                        }else{
+                        } else {
                             //disable link cursor when hover
                             span.style.cursor = "default";
                             //add a tooltip to explain the rank is not available
@@ -901,7 +1290,7 @@
 
         }
 
-        if(scoreRankData && scoreRankData.length > 0){
+        if (scoreRankData && scoreRankData.length > 0) {
             switch (CURRENT_GRAPH) {
                 case "Performance":
                     updateGraph(ppRankData, "PP Rank");
@@ -910,7 +1299,7 @@
                     updateGraph(scoreRankData, "Score Rank");
                     break;
             }
-        }else{
+        } else {
             updateGraph(ppRankData, "PP Rank");
         }
     }
