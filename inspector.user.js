@@ -96,6 +96,7 @@
     ]
 
     const MAX_SS_RANK_PAGE = 200;
+    let is_osuplus_active = false;
 
     const shortNum = (number) => {
         const postfixes = ['', 'k', 'M', 'B', 't']
@@ -110,6 +111,10 @@
     }
 
     async function run() {
+        //check for id "osuplusSettingsBtn"
+        if (document.getElementById("osuplusSettingsBtn")) {
+            is_osuplus_active = true;
+        }
 
         //if userpage
         if (window.location.href.includes("/users/")) {
@@ -125,6 +130,8 @@
             `);
         }
 
+        await handleHeader();
+
         if (window.location.href.includes("/rankings/")) {
             await handleLeaderboardPage();
         }
@@ -135,11 +142,31 @@
     }
     run();
 
+    async function handleHeader() {
+        //find 3rd with class "nav2__col nav2__col--menu"
+        const nav2 = document.getElementsByClassName("nav2__col nav2__col--menu")[2];
+
+        //get popup (nav2__menu-popup)
+        const popup = nav2.getElementsByClassName("nav2__menu-popup")[0];
+
+        //first child
+        const popup_dropdown = popup.children[0];
+
+        const ss_rank_link = document.createElement("a");
+        ss_rank_link.classList.add("simple-menu__item", "u-section-rankings--before-bg-normal");
+        ss_rank_link.href = "/rankings/osu/ss";
+        ss_rank_link.textContent = "total ss";
+
+        //insert at index 2
+        popup_dropdown.insertBefore(ss_rank_link, popup_dropdown.children[2]);
+    }
+
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
         const headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
 
         if (window.location.href.includes("/rankings/osu/ss")) {
+            //wait 0.5s for the page to load
 
             //set page title to "total ss (bullet) rankings | osu!"
             document.title = "total ss • rankings | osu!";
@@ -481,7 +508,9 @@
             try {
                 await new Promise(r => setTimeout(r, 1000));
                 if (window.location.href.includes("/beatmapsets/")) {
-                    await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
+                    if(is_osuplus_active){
+                        await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
+                    }
                 }
                 const usercards = document.getElementsByClassName("js-usercard");
                 const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
@@ -756,14 +785,6 @@
         //get username (first span element in profile-info__name)
         const username = document.getElementsByClassName("profile-info__name")[0].getElementsByTagName("span")[0].textContent;
 
-        // const startTime = new Date().getTime();
-        // while (document.getElementsByClassName("profile-info__name").length == 0) {
-        //     if (new Date().getTime() - startTime > 5000) {
-        //         return;
-        //     }
-        //     await new Promise(r => setTimeout(r, 500));
-        // }
-
         const data = await getUserData(user_id, username, mode);
 
         if (data.user_data?.inspector_user?.clan_member && !data.user_data?.inspector_user?.clan_member?.pending) {
@@ -787,7 +808,7 @@
             if (new Date().getTime() - startTime > timeout) {
                 return null;
             }
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 100));
         }
     }
 
