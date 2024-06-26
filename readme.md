@@ -21,13 +21,15 @@ Works on most browsers. You may need to enable "Developer Mode" in extension set
 
 To install the Tampermonkey userscript from the provided GitHub link, follow these steps:
 
-1. Make sure you have [Tampermonkey](https://www.tampermonkey.net/) installed in your browser. If not, you can download and install it from the official Tampermonkey website.
+1. Make sure you have [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/) extension installed in your browser.
 
 2. Open the provided GitHub link: [score-inspector-extension](https://github.com/darkchii/score-inspector-extension/raw/main/inspector.user.js).
 
 3. Tampermonkey should automatically detect the userscript and open a new tab with the installation prompt.
 
 4. Once installed, the userscript will be active and ready to use.
+
+*Greasemonkey does not work*
 
 ## TODO
 - ~~Show clantags everywhere on the site (leaderboards, friends list... etc)~~ (Added in 2024-06-18.x, multiple updates)
