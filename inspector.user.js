@@ -398,10 +398,12 @@
 
             ranking_thead.appendChild(_addTableHeaderItem());
             ranking_thead.appendChild(_addTableHeaderItem());
+            ranking_thead.appendChild(_addTableHeaderItem('Total Score'));
             ranking_thead.appendChild(_addTableHeaderItem('Ranked Score'));
             ranking_thead.appendChild(_addTableHeaderItem('SS', true, true));
             ranking_thead.appendChild(_addTableHeaderItem('S', false, true));
             ranking_thead.appendChild(_addTableHeaderItem('A', false, true));
+            ranking_thead.appendChild(_addTableHeaderItem('Clears', false));
 
             const ranking_tbody = document.createElement("tbody");
             ranking_table.appendChild(ranking_tbody);
@@ -440,6 +442,15 @@
                 td_user.appendChild(userLinkParent);
                 tr.appendChild(td_user);
 
+                const td_t_score = document.createElement("td");
+                td_t_score.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
+                const td_t_score_span = document.createElement("span");
+                td_t_score_span.textContent = shortNum(data.total_score);
+                td_t_score_span.setAttribute("data-html-title", data.total_score.toLocaleString());
+                td_t_score_span.setAttribute("title", "");
+                td_t_score.appendChild(td_t_score_span);
+                tr.appendChild(td_t_score);
+
                 const td_score = document.createElement("td");
                 td_score.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
                 const td_score_span = document.createElement("span");
@@ -456,13 +467,18 @@
 
                 const td_s = document.createElement("td");
                 td_s.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
-                td_s.textContent = data.s_count.toLocaleString();
+                td_s.textContent = (data.s_count + data.sh_count).toLocaleString();
                 tr.appendChild(td_s);
 
                 const td_a = document.createElement("td");
                 td_a.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
                 td_a.textContent = data.a_count.toLocaleString();
                 tr.appendChild(td_a);
+
+                const td_clears = document.createElement("td");
+                td_clears.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
+                td_clears.textContent = (data.ss_count + data.ssh_count + data.s_count + data.sh_count + data.a_count).toLocaleString();
+                tr.appendChild(td_clears);
 
                 return tr;
             }
