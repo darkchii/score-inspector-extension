@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-27.27
+// @version      2024-06-27.28
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -583,7 +583,8 @@
                 } else {
                     nav_prev_span = document.createElement("a");
                     nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
-                    nav_prev_span.href = `/rankings/osu/ss?page=${page - 1}`;
+                    // nav_prev_span.href = `/rankings/osu/ss?page=${page - 1}`;
+                    nav_prev_span.href = `/rankings/osu/${active_custom_ranking.api_path}?page=${page - 1}`;
                 }
                 const nav_prev_span_icon = document.createElement("i");
                 nav_prev_span_icon.classList.add("fas", "fa-angle-left");
@@ -613,7 +614,8 @@
                         a = document.createElement("a");
                     }
                     a.classList.add("pagination-v2__link");
-                    a.href = `/rankings/osu/ss?page=${_page}`;
+                    // a.href = `/rankings/osu/ss?page=${_page}`;
+                    a.href = `/rankings/osu/${active_custom_ranking.api_path}?page=${_page}`;
                     if (active) {
                         a.classList.add("pagination-v2__link--active");
                     }
@@ -647,7 +649,8 @@
                 } else {
                     nav_next_span = document.createElement("a");
                     nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
-                    nav_next_span.href = `/rankings/osu/ss?page=${page + 1}`;
+                    // nav_next_span.href = `/rankings/osu/ss?page=${page + 1}`;
+                    nav_next_span.href = `/rankings/osu/${active_custom_ranking.api_path}?page=${page + 1}`;;
                 }
                 const nav_next_span_icon = document.createElement("i");
                 const nav_next_span_text = document.createElement("span");
