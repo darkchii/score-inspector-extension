@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-26.26
+// @version      2024-06-27.27
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -19,8 +19,7 @@
 (function () {
     'use strict';
 
-    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
-    const SCORE_INSPECTOR_API = "http://localhost:3863/";
+    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
     const MODE_NAMES = [
         "osu!",
