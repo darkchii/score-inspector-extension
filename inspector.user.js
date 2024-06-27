@@ -19,7 +19,8 @@
 (function () {
     'use strict';
 
-    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    const SCORE_INSPECTOR_API = "http://localhost:3863/";
 
     const MODE_NAMES = [
         "osu!",
@@ -59,6 +60,273 @@
         'user_page': '.profile-info__name',
     }
 
+    const CUSTOM_RANKINGS_ATTRIBUTES = {
+        total_score: {
+            name: "Total Score",
+            val: (user) => {
+                return user.total_score;
+            },
+            formatter: (value) => {
+                return shortNum(value);
+            },
+            tooltip_formatter: (value) => {
+                return value.toLocaleString();
+            }
+        },
+        ranked_score: {
+            name: "Ranked Score",
+            val: (user) => {
+                return user.ranked_score;
+            },
+            formatter: (value) => {
+                return shortNum(value);
+            },
+            tooltip_formatter: (value) => {
+                return value.toLocaleString();
+            }
+        },
+        ss: {
+            name: "SS",
+            val: (user) => {
+                return user.ss_count + user.ssh_count;
+            },
+        },
+        s: {
+            name: "S",
+            val: (user) => {
+                return user.s_count + user.sh_count;
+            },
+        },
+        a: {
+            name: "A",
+            val: (user) => {
+                return user.a_count;
+            },
+        },
+        b: {
+            name: "B",
+            val: (user) => {
+                return user.b_count;
+            },
+        },
+        c: {
+            name: "C",
+            val: (user) => {
+                return user.c_count;
+            },
+        },
+        d: {
+            name: "D",
+            val: (user) => {
+                return user.d_count;
+            },
+        },
+        clears: {
+            name: "Clears",
+            val: (user) => {
+                return user.ss_count + user.ssh_count + user.s_count + user.sh_count + user.a_count;
+            },
+        },
+        playtime: {
+            name: "Playtime",
+            val: (user) => {
+                // return user.playtime;
+                //convert to pretty format
+                const hours = Math.floor(user.playtime / 3600);
+                const minutes = Math.floor(user.playtime / 60) % 60;
+                return `${hours}h ${minutes}m`;
+            },
+        },
+        playcount: {
+            name: "Playcount",
+            val: (user) => {
+                return user.playcount;
+            },
+        },
+        replays_watched: {
+            name: "Replays Watched",
+            val: (user) => {
+                return user.replays_watched;
+            },
+        },
+        total_hits: {
+            name: "Total Hits",
+            val: (user) => {
+                return user.total_hits;
+            },
+        }
+    }
+
+    const CUSTOM_RANKINGS = [
+        {
+            name: "total score",
+            api_path: "total_score",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ],
+            path: "/rankings/osu/total_score"
+        },
+        {
+            name: "total ss",
+            api_path: "ss",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d]
+            ],
+            path: "/rankings/osu/ss"
+        },
+        {
+            name: "total s",
+            api_path: "s",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d]
+            ],
+            path: "/rankings/osu/s"
+        },
+        {
+            name: "total a",
+            api_path: "a",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d]
+            ],
+            path: "/rankings/osu/a"
+        },
+        {
+            name: "total b",
+            api_path: "b",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d]
+            ],
+            path: "/rankings/osu/b"
+        },
+        {
+            name: "total c",
+            api_path: "c",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d]
+            ],
+            path: "/rankings/osu/c"
+        },
+        {
+            name: "total d",
+            api_path: "d",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d, true]
+            ],
+            path: "/rankings/osu/d"
+        },
+        {
+            name: "profile clears",
+            api_path: "clears",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.clears, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ],
+            path: "/rankings/osu/clears"
+        },
+        {
+            name: "playtime",
+            api_path: "playtime",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.playtime, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ],
+            path: "/rankings/osu/playtime"
+        },
+        {
+            name: "playcount",
+            api_path: "playcount",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.playcount, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ],
+            path: "/rankings/osu/playcount"
+        },
+        {
+            name: "total hits",
+            api_path: "total_hits",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_hits, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ],
+            path: "/rankings/osu/total_hits"
+        },
+        {
+            name: "replays watched",
+            api_path: "replays_watched",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.replays_watched, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ],
+            path: "/rankings/osu/replays_watched"
+        }
+    ]
+
     const lb_page_nav_items = [
         {
             name: "performance",
@@ -68,11 +336,21 @@
             name: "score",
             attr: "score",
             link: "/rankings/osu/score"
-        }, {
-            name: "total ss",
-            attr: "total-ss",
-            link: "/rankings/osu/ss"
-        }, {
+        },
+        // {
+        //     name: "total ss",
+        //     attr: "total-ss",
+        //     link: "/rankings/osu/ss"
+        // },
+        //add all CUSTOM_RANKINGS to the dropdown here
+        ...CUSTOM_RANKINGS.map(ranking => {
+            return {
+                name: ranking.name,
+                attr: ranking.api_path,
+                link: ranking.path
+            }
+        }),
+        {
             name: "country",
             attr: "country",
             link: "/rankings/osu/country"
@@ -95,7 +373,8 @@
         }
     ]
 
-    const MAX_SS_RANK_PAGE = 200;
+    const MAX_RANK_PAGE = 200;
+
     let is_osuplus_active = false;
 
     const shortNum = (number) => {
@@ -130,9 +409,30 @@
             `);
         }
 
-        await handleHeader();
+        if (window.location.href.includes("/rankings/") ||
+            window.location.href.includes("/multiplayer/rooms/") ||
+            window.location.href.includes("/seasons/")) {
+            //header-nav-v4--list needs to flex start fill
+            //if game-mode is active, set width to 80%, else 100%
+            GM_addStyle(`
+                .header-nav-v4--list {
+                    flex-grow: 1;
+                    width: 88%;
+                }
 
-        if (window.location.href.includes("/rankings/")) {
+                .header-nav-v4__item {
+                    padding-top: 2px;
+                    padding-bottom: 2px;
+                }
+                    
+                .game-mode {
+                    position: relative;
+                    right: 0;
+                    left: 50;
+                    width: 12%;
+                    flex-grow: 1;
+                }
+            `);
             await handleLeaderboardPage();
         }
 
@@ -152,24 +452,41 @@
         //first child
         const popup_dropdown = popup.children[0];
 
-        const ss_rank_link = document.createElement("a");
-        ss_rank_link.classList.add("simple-menu__item", "u-section-rankings--before-bg-normal");
-        ss_rank_link.href = "/rankings/osu/ss";
-        ss_rank_link.textContent = "total ss";
+        // const ss_rank_link = document.createElement("a");
+        // ss_rank_link.classList.add("simple-menu__item", "u-section-rankings--before-bg-normal");
+        // ss_rank_link.href = "/rankings/osu/ss";
+        // ss_rank_link.textContent = "total ss";
 
-        //insert at index 2
-        popup_dropdown.insertBefore(ss_rank_link, popup_dropdown.children[2]);
+        // //insert at index 2
+        // popup_dropdown.insertBefore(ss_rank_link, popup_dropdown.children[2]);
+
+        //add all custom rankings to the dropdown
+        CUSTOM_RANKINGS.forEach((ranking, index) => {
+            const link = document.createElement("a");
+            link.classList.add("simple-menu__item", "u-section-rankings--before-bg-normal");
+            link.href = ranking.path;
+            link.textContent = ranking.name;
+
+            popup_dropdown.insertBefore(link, popup_dropdown.children[2 + index]);
+        });
     }
 
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
-        const headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
+        let headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
 
-        if (window.location.href.includes("/rankings/osu/ss")) {
+        //check if we are on any of the rankings pages in CUSTOM_RANKINGS
+        //remove the query string from the url
+        let url = window.location.href.split("?")[0];
+        //remove the domain from the url
+        url = url.replace("https://osu.ppy.sh", "");
+
+        const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
+        if (active_custom_ranking) {
             //wait 0.5s for the page to load
 
             //set page title to "total ss (bullet) rankings | osu!"
-            document.title = "total ss • rankings | osu!";
+            document.title = `${active_custom_ranking.name} • rankings | osu!`;
 
             const container = document.getElementsByClassName("osu-layout__section osu-layout__section--full")[0];
             container.innerHTML = "";
@@ -223,28 +540,7 @@
             ranking_headers_row_nav.classList.add("header-nav-v4", "header-nav-v4--list");
             ranking_headers_row.appendChild(ranking_headers_row_nav);
 
-            const createHeaderItem = (item) => {
-                const li = document.createElement("li");
-                li.classList.add("header-nav-v4__item");
-
-                const a = document.createElement("a");
-                a.classList.add("header-nav-v4__link");
-
-                if (window.location.href.includes(item.link)) {
-                    a.classList.add("header-nav-v4__link--active");
-                }
-
-                a.href = item.link;
-                a.textContent = item.name;
-                a.setAttribute("data-content", item.attr);
-
-                li.appendChild(a);
-                return li;
-            }
-
-            lb_page_nav_items.forEach(item => {
-                ranking_headers_row_nav.appendChild(createHeaderItem(item));
-            });
+            headerNav = ranking_headers_row_nav;
 
             const scores_container = document.createElement("div");
             scores_container.classList.add("osu-page", "osu-page--generic");
@@ -256,7 +552,7 @@
             page = Number(page) || 1;
 
             //first try to get data now
-            const fetch_url = `${SCORE_INSPECTOR_API}users/ss_rank/${page}`;
+            const fetch_url = `${SCORE_INSPECTOR_API}extension/rank/${active_custom_ranking.api_path}/${page}`;
             const response = await fetch(fetch_url, {
                 headers: {
                     "Access-Control-Allow-Origin": "*",
@@ -336,8 +632,8 @@
                 nav.appendChild(pagination_items);
 
                 //just loop between 1 and 200
-                for (let i = 1; i <= MAX_SS_RANK_PAGE; i++) {
-                    if (i === 1 || i === MAX_SS_RANK_PAGE || (i >= page - BUTTONS_BEFORE_CURRENT_PAGE && i <= page + BUTTONS_AFTER_CURRENT_PAGE)) {
+                for (let i = 1; i <= MAX_RANK_PAGE; i++) {
+                    if (i === 1 || i === MAX_RANK_PAGE || (i >= page - BUTTONS_BEFORE_CURRENT_PAGE && i <= page + BUTTONS_AFTER_CURRENT_PAGE)) {
                         pagination_items.appendChild(_createPageButton(i, i === page));
                     } else if (i === page - BUTTONS_BEFORE_CURRENT_PAGE - 1 || i === page + BUTTONS_AFTER_CURRENT_PAGE + 1) {
                         const li = document.createElement("li");
@@ -348,7 +644,7 @@
                 }
 
                 let nav_next_span = null;
-                if (page === MAX_SS_RANK_PAGE) {
+                if (page === MAX_RANK_PAGE) {
                     nav_next_span = document.createElement("span");
                     nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
                 } else {
@@ -398,12 +694,16 @@
 
             ranking_thead.appendChild(_addTableHeaderItem());
             ranking_thead.appendChild(_addTableHeaderItem());
-            ranking_thead.appendChild(_addTableHeaderItem('Total Score'));
-            ranking_thead.appendChild(_addTableHeaderItem('Ranked Score'));
-            ranking_thead.appendChild(_addTableHeaderItem('SS', true, true));
-            ranking_thead.appendChild(_addTableHeaderItem('S', false, true));
-            ranking_thead.appendChild(_addTableHeaderItem('A', false, true));
-            ranking_thead.appendChild(_addTableHeaderItem('Clears', false));
+            // ranking_thead.appendChild(_addTableHeaderItem('Total Score'));
+            // ranking_thead.appendChild(_addTableHeaderItem('Ranked Score'));
+            // ranking_thead.appendChild(_addTableHeaderItem('SS', true, true));
+            // ranking_thead.appendChild(_addTableHeaderItem('S', false, true));
+            // ranking_thead.appendChild(_addTableHeaderItem('A', false, true));
+            // ranking_thead.appendChild(_addTableHeaderItem('Clears', false));
+
+            for (let attr of active_custom_ranking.attributes) {
+                ranking_thead.appendChild(_addTableHeaderItem(attr[0].name, attr[1] ?? false));
+            }
 
             const ranking_tbody = document.createElement("tbody");
             ranking_table.appendChild(ranking_tbody);
@@ -442,43 +742,20 @@
                 td_user.appendChild(userLinkParent);
                 tr.appendChild(td_user);
 
-                const td_t_score = document.createElement("td");
-                td_t_score.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
-                const td_t_score_span = document.createElement("span");
-                td_t_score_span.textContent = shortNum(data.total_score);
-                td_t_score_span.setAttribute("data-html-title", data.total_score.toLocaleString());
-                td_t_score_span.setAttribute("title", "");
-                td_t_score.appendChild(td_t_score_span);
-                tr.appendChild(td_t_score);
-
-                const td_score = document.createElement("td");
-                td_score.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
-                const td_score_span = document.createElement("span");
-                td_score_span.textContent = shortNum(data.ranked_score);
-                td_score_span.setAttribute("data-html-title", data.ranked_score.toLocaleString());
-                td_score_span.setAttribute("title", "");
-                td_score.appendChild(td_score_span);
-                tr.appendChild(td_score);
-
-                const td_ss = document.createElement("td");
-                td_ss.classList.add("ranking-page-table__column");
-                td_ss.textContent = (data.ss_count + data.ssh_count).toLocaleString();
-                tr.appendChild(td_ss);
-
-                const td_s = document.createElement("td");
-                td_s.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
-                td_s.textContent = (data.s_count + data.sh_count).toLocaleString();
-                tr.appendChild(td_s);
-
-                const td_a = document.createElement("td");
-                td_a.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
-                td_a.textContent = data.a_count.toLocaleString();
-                tr.appendChild(td_a);
-
-                const td_clears = document.createElement("td");
-                td_clears.classList.add("ranking-page-table__column", "ranking-page-table__column--dimmed");
-                td_clears.textContent = (data.ss_count + data.ssh_count + data.s_count + data.sh_count + data.a_count).toLocaleString();
-                tr.appendChild(td_clears);
+                for (let attr of active_custom_ranking.attributes) {
+                    const formatter = attr[0].formatter ?? ((val) => val.toLocaleString());
+                    const td = document.createElement("td");
+                    td.classList.add("ranking-page-table__column");
+                    if (!attr[1]) {
+                        td.classList.add("ranking-page-table__column--dimmed");
+                    }
+                    td.textContent = formatter(attr[0].val(data));
+                    if (attr[0].tooltip_formatter) {
+                        td.setAttribute("data-html-title", attr[0].tooltip_formatter(attr[0].val(data)));
+                        td.setAttribute("title", "");
+                    }
+                    tr.appendChild(td);
+                }
 
                 return tr;
             }
@@ -489,28 +766,52 @@
 
             //another pagination at the bottom
             scores_container.appendChild(createPagination(page));
-        } else {
-            //check if theres no element with data-content="total-ss"
-            if (!headerNav.querySelector("[data-content='total-ss']")) {
-                //at index 2, duplicate the element from index 1
-                const li = headerNav.getElementsByTagName("li")[1];
-                const liClone = li.cloneNode(true);
-                //insert liClone after li
-                headerNav.insertBefore(liClone, li.nextSibling);
-
-                const link = liClone.getElementsByTagName("a")[0];
-                link.href = "/rankings/osu/ss";
-
-                const titleSpan = link.getElementsByTagName("span")[0];
-                titleSpan.textContent = "total ss";
-                titleSpan.setAttribute("data-content", "total-ss");
-
-                //remove the '-active' part of the class
-                if (!window.location.href.includes("/rankings/osu/ss")) {
-                    link.classList.remove("header-nav-v4__link--active");
-                }
-            }
         }
+
+        //empty the header nav
+        // CUSTOM_RANKINGS.forEach(ranking => {
+        //     if (!headerNav.querySelector(`[data-content="${ranking.api_path}"]`)) {
+        //         const li = document.createElement("li");
+        //         li.classList.add("header-nav-v4__item");
+
+        //         const a = document.createElement("a");
+        //         a.classList.add("header-nav-v4__link");
+        //         a.href = ranking.path;
+        //         a.textContent = ranking.name;
+        //         a.setAttribute("data-content", ranking.api_path);
+
+        //         if (url !== ranking.path) {
+        //             a.classList.remove("header-nav-v4__link--active");
+        //         }
+
+        //         li.appendChild(a);
+
+        //         headerNav.appendChild(li);
+        //     }
+        // });
+
+        //empty the header nav
+        headerNav.innerHTML = "";
+        lb_page_nav_items.forEach(item => {
+            if (!headerNav.querySelector(`[data-content="${item.attr}"]`)) {
+                const li = document.createElement("li");
+                li.classList.add("header-nav-v4__item");
+
+                const a = document.createElement("a");
+                a.classList.add("header-nav-v4__link");
+                a.href = item.link;
+                a.textContent = item.name;
+                a.setAttribute("data-content", item.attr);
+
+                if (url === item.link) {
+                    a.classList.add("header-nav-v4__link--active");
+                }
+
+                li.appendChild(a);
+
+                headerNav.appendChild(li);
+            }
+        });
     }
 
     //finds all usernames on the page and adds clan tags to them
@@ -524,14 +825,18 @@
             try {
                 await new Promise(r => setTimeout(r, 1000));
                 if (window.location.href.includes("/beatmapsets/")) {
-                    if(is_osuplus_active){
+                    if (is_osuplus_active) {
                         await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
                     }
                 }
                 const usercards = document.getElementsByClassName("js-usercard");
+                const usercards_big = document.getElementsByClassName("user-card");
                 const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
+                const user_ids_big = Array.from(usercards_big).map(card => getUserCardBigID(card));
+
+                const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
                 //unique user ids
-                const clan_data = await getUsersClans(user_ids.filter((v, i, a) => a.indexOf(v) === i));
+                const clan_data = await getUsersClans(_user_ids);
 
                 if (clan_data && Array.isArray(clan_data) && clan_data.length > 0) {
                     modifyJsUserCards(clan_data);
@@ -564,8 +869,17 @@
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
+    function getUserCardBigID(card) {
+        const a = card.querySelector("a");
+        const href_split = a.href.split("/");
+        const user_id = href_split[href_split.length - 1];
+        return user_id;
+    }
+
     function modifyJsUserCards(clan_data) {
-        let usercards = document.querySelectorAll("[class*='js-usercard']");
+        // let usercards = document.querySelectorAll("[class*='js-usercard']");
+        //get all usercards that have class "js-usercard" or "user-card"
+        let usercards = document.querySelectorAll("[class*='js-usercard'], [class*='user-card']");
         //filter out with class "comment__avatar"
         usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
         //filter out with child class "avatar avatar--guest avatar--beatmapset"
@@ -619,85 +933,96 @@
 
         for (let i = 0; i < usercards.length; i++) {
             if (!clan_data || clan_data.length === 0) return;
-            //get the user id from the data-user-id attribute
-            const user_id = usercards[i].getAttribute("data-user-id");
-            const user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
 
-            if (!user_clan_data) {
+            let user_id = null;
+            let user_clan_data = null;
+            //if user-card
+            if (usercards[i].classList.contains("user-card")) {
+                user_id = getUserCardBigID(usercards[i]);
+                user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
+
+                if (!user_clan_data || !user_id) {
+                    continue;
+                }
+
+                setBigUserCardClanTag(usercards[i], user_clan_data);
+
                 continue;
             }
 
-            //get content of the element (the username)
-            let username = usercards[i].textContent;
-            //trim the username
-            username = username.trim();
+            user_id = usercards[i].getAttribute("data-user-id");
+            user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
 
-            //create a span element ([clan_tag] username), set the color and url to the clan tag
-            const clanTag = document.createElement("a");
-            clanTag.textContent = `[${user_clan_data.clan.tag}] `;
-            clanTag.style.color = `#${user_clan_data.clan.color}`;
-            clanTag.style.fontWeight = "bold";
-            clanTag.href = `https://score.kirino.sh/clan/${user_clan_data.clan.id}`;
-            clanTag.target = "_blank";
-            //force single line
-            clanTag.style.whiteSpace = "nowrap";
-            //set id
-            clanTag.classList.add("inspector_user_tag");
-
-            //if usercard has class "beatmap-scoreboard-table__cell-content" along with it, add whitespace-width padding
-            if (usercards[i].classList.contains("beatmap-scoreboard-table__cell-content")) {
-                clanTag.style.paddingRight = "5px";
+            if (!user_clan_data || !user_id) {
+                continue;
             }
 
-            //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
-            const usercardLink = usercards[i].getElementsByClassName("user-card-brick__link")[0];
-            if (usercardLink) {
-                //first check if one exists already
-                if (usercardLink.getElementsByClassName("inspector_user_tag").length > 0) {
-                    continue;
-                }
-                clanTag.style.marginRight = "5px";
-                usercardLink.insertBefore(clanTag, usercardLink.childNodes[1]);
-                //if usercard has parent with class "chat-message-group__sender"
-            } else if (usercards[i].parentElement.classList.contains("chat-message-group__sender")) {
-                //check if one exists already
-                if (usercards[i].parentElement.getElementsByClassName("inspector_user_tag").length > 0) {
-                    continue;
-                }
+            setUserCardBrickClanTag(usercards[i], user_clan_data);
+        }
+    }
 
-                const parent = usercards[i].parentElement;
-                //find child in parent with class "chat-message-group__username"
-                const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
-                //insert clan tag in usernameElement before the text
-                usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
-            } else {
-                //check if one exists already
-                if (usercards[i].getElementsByClassName("inspector_user_tag").length > 0) {
-                    continue;
-                }
-                usercards[i].insertBefore(clanTag, usercards[i].childNodes[0]);
+    const generateTagSpan = (clan) => {
+        const clanTag = document.createElement("a");
+        clanTag.textContent = `[${clan.clan.tag}] `;
+        clanTag.style.color = `#${clan.clan.color}`;
+        clanTag.style.fontWeight = "bold";
+        clanTag.href = `https://score.kirino.sh/clan/${clan.clan.id}`;
+        clanTag.target = "_blank";
+        //force single line
+        clanTag.style.whiteSpace = "nowrap";
+        //set id
+        clanTag.classList.add("inspector_user_tag");
+
+        return clanTag;
+    }
+
+    function setBigUserCardClanTag(card, clan) {
+        const usernameElement = card.getElementsByClassName("user-card__username u-ellipsis-pre-overflow")[0];
+        const clanTag = generateTagSpan(clan);
+        usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
+    }
+
+    function setUserCardBrickClanTag(card, clan) {
+        //get content of the element (the username)
+        let username = card.textContent;
+        //trim the username
+        username = username.trim();
+
+        //create a span element ([clan_tag] username), set the color and url to the clan tag
+        const clanTag = generateTagSpan(clan);
+
+        //if usercard has class "beatmap-scoreboard-table__cell-content" along with it, add whitespace-width padding
+        if (card.classList.contains("beatmap-scoreboard-table__cell-content")) {
+            clanTag.style.paddingRight = "5px";
+        }
+
+        //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
+        const usercardLink = card.getElementsByClassName("user-card-brick__link")[0];
+        if (usercardLink) {
+            //first check if one exists already
+            if (usercardLink.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
+            }
+            clanTag.style.marginRight = "5px";
+            usercardLink.insertBefore(clanTag, usercardLink.childNodes[1]);
+            //if usercard has parent with class "chat-message-group__sender"
+        } else if (card.parentElement.classList.contains("chat-message-group__sender")) {
+            //check if one exists already
+            if (card.parentElement.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
             }
 
-            //also add an event listener to the usercards to update the clan tag when the usercard is updated
-            //other extensions might update the usercard after the page is loaded
-            //this causes the clan tag to disappear
-
-            // MutationObserver to detect changes in the usercard
-            const observer = new MutationObserver((mutationsList, observer) => {
-                for (let mutation of mutationsList) {
-                    if (mutation.type === 'childList') {
-                        //if the usercard is updated, re-add the clan tag
-                        if (mutation.target.classList.contains("js-usercard")) {
-                            //only clan_data of the user
-                            const sub_clan_data = clan_data.find(clan => clan.osu_id == mutation.target.getAttribute("data-user-id"));
-                            modifyJsUserCards(sub_clan_data);
-                            observer.disconnect();
-                        }
-                    }
-                }
-            });
-
-            observer.observe(usercards[i], { childList: true });
+            const parent = card.parentElement;
+            //find child in parent with class "chat-message-group__username"
+            const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
+            //insert clan tag in usernameElement before the text
+            usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
+        } else {
+            //check if one exists already
+            if (card.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
+            }
+            card.insertBefore(clanTag, card.childNodes[0]);
         }
     }
 
@@ -848,7 +1173,7 @@
 
         let uncached_users = [];
         if (user_ids.length > 0) {
-            const url = SCORE_INSPECTOR_API + "clans/user";
+            const url = SCORE_INSPECTOR_API + "extension/clans/users";
             const response = await fetch(url, {
                 headers: {
                     "Access-Control-Allow-Origin": "*",
@@ -889,42 +1214,68 @@
     async function getUserData(user_id, username, mode = "osu") {
         const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
         let data = null;
-        const url = SCORE_INSPECTOR_API + "users/full/" + user_id + "?skipDailyData=true&skipOsuData=true&skipExtras=true";
-        const response = await fetch(url, {
-            headers: {
-                "Access-Control-Allow-Origin": "*"
-            }
-        });
-        data = await response.json();
+        try{
+            const url = SCORE_INSPECTOR_API + `extension/profile`;
+            const response = await fetch(url, {
+                headers: {
+                    "Access-Control-Allow-Origin": "*",
+                    "Content-Type": "application/json"
+                },
+                method: "POST",
+                body: JSON.stringify({
+                    user_id: user_id,
+                    mode: modeIndex,
+                    username: username
+                })
+            });
+            data = await response.json();
 
-        //then we get /users/stats/{user_id}
-        const response2 = await fetch(SCORE_INSPECTOR_API + `users/stats/${user_id}?mode=${modeIndex}&username=${username}`, {
-            headers: {
-                "Access-Control-Allow-Origin": "*"
-            }
-        });
-        const data2 = await response2.json();
+            console.log(data);
+            return null;
+        }catch(err){
+            console.log(err);
 
-        const response3 = await fetch(SCORE_INSPECTOR_API + "users/osu/completionists", {
-            headers: {
-                "Access-Control-Allow-Origin": "*"
-            }
-        });
-        const data3 = await response3.json();
-
-        let completionist_data = [];
-        if (data3 && !data3.error) {
-            //find all where osu_id == user_id
-            completionist_data = data3.filter(c => c.osu_id == user_id);
+            return null;
         }
 
-        const _stats = {
-            ...data2.stats,
-            scoreRankHistory: data2.scoreRankHistory,
-            completionists: completionist_data
-        }
+        // const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
+        // let data = null;
+        // const url = SCORE_INSPECTOR_API + `extension/profile/${user_id}`;
+        // const response = await fetch(url, {
+        //     headers: {
+        //         "Access-Control-Allow-Origin": "*"
+        //     }
+        // });
+        // data = await response.json();
 
-        return { user_data: data, stats_data: _stats };
+        // //then we get /users/stats/{user_id}
+        // const response2 = await fetch(SCORE_INSPECTOR_API + `users/stats/${user_id}?mode=${modeIndex}&username=${username}`, {
+        //     headers: {
+        //         "Access-Control-Allow-Origin": "*"
+        //     }
+        // });
+        // const data2 = await response2.json();
+
+        // const response3 = await fetch(SCORE_INSPECTOR_API + "users/osu/completionists", {
+        //     headers: {
+        //         "Access-Control-Allow-Origin": "*"
+        //     }
+        // });
+        // const data3 = await response3.json();
+
+        // let completionist_data = [];
+        // if (data3 && !data3.error) {
+        //     //find all where osu_id == user_id
+        //     completionist_data = data3.filter(c => c.osu_id == user_id);
+        // }
+
+        // const _stats = {
+        //     ...data2.stats,
+        //     scoreRankHistory: data2.scoreRankHistory,
+        //     completionists: completionist_data
+        // }
+
+        // return { user_data: data, stats_data: _stats };
     }
 
     function setCompletionistBadges(badge_data) {
