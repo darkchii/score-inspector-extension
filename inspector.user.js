@@ -1379,9 +1379,9 @@
             data.user.alt_sh_count +
             data.user.alt_s_count +
             data.user.alt_a_count +
-            data.user.b_count + data.user.c_count + data.user.d_count) : null;
-        const profile_clears = data.user ? (data.user.ssh_count + data.user.ss_count + data.user.sh_count + data.user.s_count + data.user.a_count) : null;
-        var clearsDisplay = getValueDisplay("Clears", Number(clears).toLocaleString(), false, `Profile clears: ${Number(profile_clears).toLocaleString()}`);
+            data.user.b_count + data.user.c_count + data.user.d_count) : 'NaN';
+        const profile_clears = data.user ? (data.user.ssh_count + data.user.ss_count + data.user.sh_count + data.user.s_count + data.user.a_count) : 'NaN';
+        var clearsDisplay = getValueDisplay("Clears", clears ? Number(clears).toLocaleString() : null, false, `Profile clears: ${Number(profile_clears).toLocaleString()}`);
         profile_detail__values.appendChild(clearsDisplay);
 
         var completionDisplay = getValueDisplay("Completion", !isNaN(clears) ? `${(data.user?.completion ?? 0).toFixed(2)}%` : "NaN");
