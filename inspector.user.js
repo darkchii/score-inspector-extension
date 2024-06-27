@@ -570,8 +570,6 @@
                 return;
             }
 
-            console.log(data);
-
             const createPagination = (page) => {
                 const nav = document.createElement("nav");
                 nav.classList.add("pagination-v2");
@@ -1128,18 +1126,18 @@
 
         const data = await getUserData(user_id, username, mode);
 
-        if (data.user_data?.inspector_user?.clan_member && !data.user_data?.inspector_user?.clan_member?.pending) {
-            setOrCreateUserClanTagElement(data.user_data.inspector_user.clan_member.clan);
-            setOrCreateUserClanBannerElement(data.user_data.inspector_user.clan_member.clan);
+        if (data.clan && !data.clan?.pending) {
+            setOrCreateUserClanTagElement(data.clan.clan);
+            setOrCreateUserClanBannerElement(data.clan.clan);
         }
 
-        if (data.stats_data?.completionists) {
-            setCompletionistBadges(data.stats_data.completionists);
+        if (data.completion) {
+            setCompletionistBadges(data.completion);
         }
 
-        if (data.stats_data) {
-            setOrCreateStatisticsElements(data.stats_data);
-            setNewRankGraph(data.stats_data.scoreRankHistory, data.stats_data.scoreRank);
+        if (data) {
+            setOrCreateStatisticsElements(data);
+            setNewRankGraph(data.scoreRankHistory, data.scoreRank);
         }
     }
 
@@ -1214,7 +1212,7 @@
     async function getUserData(user_id, username, mode = "osu") {
         const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
         let data = null;
-        try{
+        try {
             const url = SCORE_INSPECTOR_API + `extension/profile`;
             const response = await fetch(url, {
                 headers: {
@@ -1230,52 +1228,11 @@
             });
             data = await response.json();
 
-            console.log(data);
-            return null;
-        }catch(err){
-            console.log(err);
-
+            return data;
+        } catch (err) {
+            console.error(err);
             return null;
         }
-
-        // const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
-        // let data = null;
-        // const url = SCORE_INSPECTOR_API + `extension/profile/${user_id}`;
-        // const response = await fetch(url, {
-        //     headers: {
-        //         "Access-Control-Allow-Origin": "*"
-        //     }
-        // });
-        // data = await response.json();
-
-        // //then we get /users/stats/{user_id}
-        // const response2 = await fetch(SCORE_INSPECTOR_API + `users/stats/${user_id}?mode=${modeIndex}&username=${username}`, {
-        //     headers: {
-        //         "Access-Control-Allow-Origin": "*"
-        //     }
-        // });
-        // const data2 = await response2.json();
-
-        // const response3 = await fetch(SCORE_INSPECTOR_API + "users/osu/completionists", {
-        //     headers: {
-        //         "Access-Control-Allow-Origin": "*"
-        //     }
-        // });
-        // const data3 = await response3.json();
-
-        // let completionist_data = [];
-        // if (data3 && !data3.error) {
-        //     //find all where osu_id == user_id
-        //     completionist_data = data3.filter(c => c.osu_id == user_id);
-        // }
-
-        // const _stats = {
-        //     ...data2.stats,
-        //     scoreRankHistory: data2.scoreRankHistory,
-        //     completionists: completionist_data
-        // }
-
-        // return { user_data: data, stats_data: _stats };
     }
 
     function setCompletionistBadges(badge_data) {
@@ -1362,15 +1319,14 @@
         //create the elements if they don't exist
         const ranks = ["B", "C", "D"];
         ranks.forEach(rank => {
-            const count = document.getElementsByClassName(`score-rank--${rank} score-rank--profile-page`).length;
             if (!document.getElementsByClassName(`score-rank--${rank} score-rank--profile-page`).length) {
                 var b = document.createElement("div");
                 var div = document.createElement("div");
                 div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
                 b.appendChild(div);
                 let rankText = null;
-                if (data[rank.toLowerCase()] !== undefined && !isNaN(data[rank.toLowerCase()])) {
-                    rankText = document.createTextNode(Number(data[rank.toLowerCase()]).toLocaleString());
+                if (data.user?.[`${rank.toLowerCase()}_count`] !== undefined && !isNaN(data.user?.[`${rank.toLowerCase()}_count`])) {
+                    rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
                 } else {
                     rankText = document.createTextNode('-');
 
@@ -1390,8 +1346,8 @@
                 let _rank = rank.toLowerCase();
                 if (_rank === 'xh') _rank = 'ssh';
                 if (_rank === 'x') _rank = 'ss';
-                let val = Number(data[`alt_${_rank}_count`]).toLocaleString();
-                if (isNaN(Number(data[`alt_${_rank}_count`]))) val = 'Data not available';
+                let val = Number(data.user?.[`alt_${_rank}_count`]).toLocaleString();
+                if (isNaN(Number(data.user?.[`alt_${_rank}_count`]))) val = 'Data not available';
                 rankElement.setAttribute("data-html-title", `
                     osu!alt: ${val}
                     `);
@@ -1412,24 +1368,29 @@
         parent.style.justifyContent = "flex-end";
 
         //grades done
-
-        console.log(data);
-
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
         const profile_detail__values = document.getElementsByClassName("profile-detail__values")[1];
 
         profile_detail__rank.style.gap = "10px";
 
-        var clearsDisplay = getValueDisplay("Clears", Number(data.clears).toLocaleString(), false, `Profile clears: ${Number(data.profile_clears ?? 0).toLocaleString()}`);
+        const clears = data.user ? (
+            data.user.alt_ssh_count +
+            data.user.alt_ss_count +
+            data.user.alt_sh_count +
+            data.user.alt_s_count +
+            data.user.alt_a_count +
+            data.user.b_count + data.user.c_count + data.user.d_count) : null;
+        const profile_clears = data.user ? (data.user.ssh_count + data.user.ss_count + data.user.sh_count + data.user.s_count + data.user.a_count) : null;
+        var clearsDisplay = getValueDisplay("Clears", Number(clears).toLocaleString(), false, `Profile clears: ${Number(profile_clears).toLocaleString()}`);
         profile_detail__values.appendChild(clearsDisplay);
 
-        var completionDisplay = getValueDisplay("Completion", !isNaN(data.clears) ? `${(data.completion ?? 0).toFixed(2)}%` : "NaN");
+        var completionDisplay = getValueDisplay("Completion", !isNaN(clears) ? `${(data.user?.completion ?? 0).toFixed(2)}%` : "NaN");
         profile_detail__values.appendChild(completionDisplay);
 
-        var top50sDisplay = getValueDisplay("Top 50s", Number(data.top50s ?? 0).toLocaleString());
+        var top50sDisplay = getValueDisplay("Top 50s", Number(data.stats?.top50s ?? 0).toLocaleString());
         profile_detail__values.appendChild(top50sDisplay);
 
-        var globalSSrankDisplay = getValueDisplay("SS Ranking", Number(data.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.global_ss_rank_highest_date ? new Date(data.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
+        var globalSSrankDisplay = getValueDisplay("SS Ranking", Number(data.user?.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.global_ss_rank_highest_date ? new Date(data.user?.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
             day: 'numeric',
             month: 'long',
             year: 'numeric'
@@ -1437,7 +1398,7 @@
             }`);
         profile_detail__rank.appendChild(globalSSrankDisplay);
 
-        var countrySSrankDisplay = getValueDisplay("Country SS Ranking", Number(data.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.country_ss_rank_highest_date ? new Date(data.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
+        var countrySSrankDisplay = getValueDisplay("Country SS Ranking", Number(data.user?.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.country_ss_rank_highest_date ? new Date(data.user?.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
             day: 'numeric',
             month: 'long',
             year: 'numeric'
