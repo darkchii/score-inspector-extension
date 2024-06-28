@@ -1726,6 +1726,9 @@
                         hoverRadius: 10,
                         hitRadius: 10,
                         hoverBorderWidth: 5
+                    },
+                    line: {
+                        borderWidth: 2
                     }
                 },
                 interaction: {
