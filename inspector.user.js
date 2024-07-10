@@ -439,7 +439,8 @@
         await runUsernames();
         await runScoreRankCompletionPercentages();
     }
-    run();
+    // - Second run(); call removed as it seems unnecessary
+    // run();
 
     async function handleHeader() {
         //find 3rd with class "nav2__col nav2__col--menu"
