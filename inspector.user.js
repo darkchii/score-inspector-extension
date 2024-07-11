@@ -439,6 +439,7 @@
         await runUsernames();
         await runScoreRankCompletionPercentages();
     }
+
     // - Second run(); call removed as it seems unnecessary
     // run();
 
@@ -852,6 +853,13 @@
         const observer = new MutationObserver((mutationsList, observer) => {
             for (let mutation of mutationsList) {
                 if (mutation.type === 'childList') {
+                    // On the user profile, update clan tags when "Load More" is called.
+                    if (window.location.href.includes("/users/") || window.location.href.includes("/u/")) {
+                        if (mutation.target.classList.contains("osu-layout__col-container")) {
+                            _func();
+                        }
+                    }
+
                     if (window.location.href.includes("/beatmapsets/")) {
                         if (mutation.target.classList.contains("beatmapset-scoreboard__main")) {
                             _func();
