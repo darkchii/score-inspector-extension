@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-07-16.29
+// @version      2024-07-16.30
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1611,7 +1611,8 @@
 
                     const graphData = getRankSet(graph);
                     let span = document.createElement(CURRENT_GRAPH === graph ? "span" : "a");
-                    span.style.color = CURRENT_GRAPH !== graph ? "#fc2" : "white";
+                    // span.style.color = CURRENT_GRAPH !== graph ? "#fc2" : "white";
+                    span.style.color = CURRENT_GRAPH !== graph ? (graphHue ? `hsl(${graphHue}, 40%, 80%)` : "#fc2") : "white";
                     if (CURRENT_GRAPH !== graph) {
                         span.href = "javascript:void(0)";
                         span.style.textDecoration = "underline";
