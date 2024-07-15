@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-06-27.28
+// @version      2024-07-16.29
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1536,6 +1536,7 @@
     let activeChart = 'pp';
     let ppRankData = null;
     let scoreRankData = null;
+    let graphHue = 0;
     function setNewRankGraph(score_rank_history, current_rank) {
         const TODAY = new Date();
 
@@ -1552,6 +1553,7 @@
         const layout = document.getElementsByClassName("js-react--profile-page osu-layout osu-layout--full")[0];
         const data = layout.getAttribute("data-initial-data");
         const parsedData = JSON.parse(data);
+        graphHue = parsedData.user.profile_hue;
         const rankHistory = parsedData.user.rank_history.data ?? parsedData.user.rankHistory.data ?? [];
 
         //generate data for pp rank (array is a simple number array [0,5,25,7763,...] sorted oldest to newest, 89d ago to today, convert it to object array {date,rank})
@@ -1679,7 +1681,8 @@
                 datasets: [{
                     label: rank_type,
                     data: rank_data.map(data => data.rank),
-                    borderColor: '#fc2',
+                    // borderColor: '#fc2',
+                    borderColor: graphHue ? `hsl(${graphHue}, 50%, 45%)` : '#fc2',
                     tension: 0.1,
                 }]
             },
