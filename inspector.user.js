@@ -442,35 +442,6 @@
 
     run();
 
-    async function handleHeader() {
-        //find 3rd with class "nav2__col nav2__col--menu"
-        const nav2 = document.getElementsByClassName("nav2__col nav2__col--menu")[2];
-
-        //get popup (nav2__menu-popup)
-        const popup = nav2.getElementsByClassName("nav2__menu-popup")[0];
-
-        //first child
-        const popup_dropdown = popup.children[0];
-
-        // const ss_rank_link = document.createElement("a");
-        // ss_rank_link.classList.add("simple-menu__item", "u-section-rankings--before-bg-normal");
-        // ss_rank_link.href = "/rankings/osu/ss";
-        // ss_rank_link.textContent = "total ss";
-
-        // //insert at index 2
-        // popup_dropdown.insertBefore(ss_rank_link, popup_dropdown.children[2]);
-
-        //add all custom rankings to the dropdown
-        CUSTOM_RANKINGS.forEach((ranking, index) => {
-            const link = document.createElement("a");
-            link.classList.add("simple-menu__item", "u-section-rankings--before-bg-normal");
-            link.href = ranking.path;
-            link.textContent = ranking.name;
-
-            popup_dropdown.insertBefore(link, popup_dropdown.children[2 + index]);
-        });
-    }
-
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
         let headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
@@ -768,28 +739,6 @@
             //another pagination at the bottom
             scores_container.appendChild(createPagination(page));
         }
-
-        //empty the header nav
-        // CUSTOM_RANKINGS.forEach(ranking => {
-        //     if (!headerNav.querySelector(`[data-content="${ranking.api_path}"]`)) {
-        //         const li = document.createElement("li");
-        //         li.classList.add("header-nav-v4__item");
-
-        //         const a = document.createElement("a");
-        //         a.classList.add("header-nav-v4__link");
-        //         a.href = ranking.path;
-        //         a.textContent = ranking.name;
-        //         a.setAttribute("data-content", ranking.api_path);
-
-        //         if (url !== ranking.path) {
-        //             a.classList.remove("header-nav-v4__link--active");
-        //         }
-
-        //         li.appendChild(a);
-
-        //         headerNav.appendChild(li);
-        //     }
-        // });
 
         //empty the header nav
         headerNav.innerHTML = "";
