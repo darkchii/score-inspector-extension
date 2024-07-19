@@ -336,12 +336,6 @@
             attr: "score",
             link: "/rankings/osu/score"
         },
-        // {
-        //     name: "total ss",
-        //     attr: "total-ss",
-        //     link: "/rankings/osu/ss"
-        // },
-        //add all CUSTOM_RANKINGS to the dropdown here
         ...CUSTOM_RANKINGS.map(ranking => {
             return {
                 name: ranking.name,
@@ -1278,24 +1272,28 @@
         //create the elements if they don't exist
         const ranks = ["B", "C", "D"];
         ranks.forEach(rank => {
-            if (!document.getElementsByClassName(`score-rank--${rank} score-rank--profile-page`).length) {
-                var b = document.createElement("div");
-                var div = document.createElement("div");
-                div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
-                b.appendChild(div);
-                let rankText = null;
-                if (data.user?.[`${rank.toLowerCase()}_count`] !== undefined && !isNaN(data.user?.[`${rank.toLowerCase()}_count`])) {
-                    rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
-                } else {
-                    rankText = document.createTextNode('-');
-
-                    //add a tooltip to explain the rank is not available
-                    b.setAttribute("data-html-title", `<div>Data not available</div>`);
-                    b.setAttribute("title", "");
-                }
-                b.appendChild(rankText);
-                parent.appendChild(b);
+            //if element exists, delete it
+            if(document.getElementById(`inspector_elm_${rank.toLowerCase()}`)) {
+                document.getElementById(`inspector_elm_${rank.toLowerCase()}`).remove();
             }
+
+            var b = document.createElement("div");
+            b.id = `inspector_elm_${rank.toLowerCase()}`;
+            var div = document.createElement("div");
+            div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
+            b.appendChild(div);
+            let rankText = null;
+            if (data.user?.[`${rank.toLowerCase()}_count`] !== undefined && !isNaN(data.user?.[`${rank.toLowerCase()}_count`])) {
+                rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
+            } else {
+                rankText = document.createTextNode('-');
+
+                //add a tooltip to explain the rank is not available
+                b.setAttribute("data-html-title", `<div>Data not available</div>`);
+                b.setAttribute("title", "");
+            }
+            b.appendChild(rankText);
+            parent.appendChild(b);
         });
 
         //for all XH, X, SH, S, A ranks, we set a tooltip display alt values
@@ -1340,36 +1338,42 @@
             data.user.alt_a_count +
             data.user.b_count + data.user.c_count + data.user.d_count) : 'NaN';
         const profile_clears = data.user ? (data.user.ssh_count + data.user.ss_count + data.user.sh_count + data.user.s_count + data.user.a_count) : 'NaN';
-        var clearsDisplay = getValueDisplay("Clears", clears ? Number(clears).toLocaleString() : null, false, `Profile clears: ${Number(profile_clears).toLocaleString()}`);
+        var clearsDisplay = getValueDisplay("inspector_elm_clears", "Clears", clears ? Number(clears).toLocaleString() : null, false, `Profile clears: ${Number(profile_clears).toLocaleString()}`);
+        if (document.getElementById("inspector_elm_clears")) { document.getElementById("inspector_elm_clears").remove(); }
         profile_detail__values.appendChild(clearsDisplay);
 
-        var completionDisplay = getValueDisplay("Completion", !isNaN(clears) ? `${(data.user?.completion ?? 0).toFixed(2)}%` : "NaN");
+        var completionDisplay = getValueDisplay("inspector_elm_completion", "Completion", !isNaN(clears) ? `${(data.user?.completion ?? 0).toFixed(2)}%` : "NaN");
+        if (document.getElementById("inspector_elm_completion")) { document.getElementById("inspector_elm_completion").remove(); }
         profile_detail__values.appendChild(completionDisplay);
 
-        var top50sDisplay = getValueDisplay("Top 50s", Number(data.stats?.top50s ?? 0).toLocaleString());
+        var top50sDisplay = getValueDisplay("inspector_elm_top50s", "Top 50s", Number(data.stats?.top50s ?? 0).toLocaleString());
+        if (document.getElementById("inspector_elm_top50s")) { document.getElementById("inspector_elm_top50s").remove(); }
         profile_detail__values.appendChild(top50sDisplay);
 
-        var globalSSrankDisplay = getValueDisplay("SS Ranking", Number(data.user?.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.global_ss_rank_highest_date ? new Date(data.user?.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
+        var globalSSrankDisplay = getValueDisplay("inspector_elm_ss_rank", "SS Ranking", Number(data.user?.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.global_ss_rank_highest_date ? new Date(data.user?.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
             day: 'numeric',
             month: 'long',
             year: 'numeric'
         }) : "N/A"
             }`);
+        if (document.getElementById("inspector_elm_ss_rank")) { document.getElementById("inspector_elm_ss_rank").remove(); }
         profile_detail__rank.appendChild(globalSSrankDisplay);
 
-        var countrySSrankDisplay = getValueDisplay("Country SS Ranking", Number(data.user?.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.country_ss_rank_highest_date ? new Date(data.user?.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
+        var countrySSrankDisplay = getValueDisplay("inspector_elm_ss_c_rank", "Country SS Ranking", Number(data.user?.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.country_ss_rank_highest_date ? new Date(data.user?.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
             day: 'numeric',
             month: 'long',
             year: 'numeric'
         }) : "N/A"
             }`);
+        if (document.getElementById("inspector_elm_ss_c_rank")) { document.getElementById("inspector_elm_ss_c_rank").remove(); }
         profile_detail__rank.appendChild(countrySSrankDisplay);
 
         profile_detail__values.style.rowGap = "5px";
     }
 
-    function getValueDisplay(label, value, is_rank = false, tooltip = null) {
+    function getValueDisplay(id, label, value, is_rank = false, tooltip = null) {
         var div = document.createElement("div");
+        div.id = id;
         div.className = `value-display value-display--${is_rank ? 'rank' : 'plain'}`;
         var labelDiv = document.createElement("div");
         labelDiv.className = "value-display__label";
