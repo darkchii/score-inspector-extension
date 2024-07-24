@@ -1326,7 +1326,7 @@
 
         //grades done
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
-        const profile_detail__values = document.getElementsByClassName("profile-detail__values")[1];
+        const profile_detail__values = document.getElementsByClassName("profile-detail__values")[2];
 
         profile_detail__rank.style.gap = "10px";
 
