@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-07-19.31
+// @version      2024-07-24.32
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1326,7 +1326,7 @@
 
         //grades done
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
-        const profile_detail__values = document.getElementsByClassName("profile-detail__values")[1];
+        const profile_detail__values = document.getElementsByClassName("profile-detail__values")[2];
 
         profile_detail__rank.style.gap = "10px";
 
