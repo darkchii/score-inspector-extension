@@ -393,10 +393,18 @@
             //override css font-size for class "value-display__value"
             GM_addStyle(`
                 .value-display--rank .value-display__value {
-                    font-size: 20px;
+                    font-size: 18px;
                 }
 
                 .value-display__label {
+                    font-size: 11px;
+                }
+
+                .daily-challenge__name {
+                    font-size: 10px;
+                }
+
+                .daily-challenge__value {
                     font-size: 12px;
                 }
             `);
@@ -1328,7 +1336,7 @@
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
         const profile_detail__values = document.getElementsByClassName("profile-detail__values")[2];
 
-        profile_detail__rank.style.gap = "10px";
+        profile_detail__rank.style.gap = "8px";
 
         const clears = data.user ? (
             data.user.alt_ssh_count +
