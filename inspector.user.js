@@ -393,19 +393,11 @@
             //override css font-size for class "value-display__value"
             GM_addStyle(`
                 .value-display--rank .value-display__value {
-                    font-size: 18px;
+                    font-size: 20px;
                 }
 
                 .value-display__label {
-                    font-size: 11px;
-                }
-
-                .daily-challenge__name {
-                    font-size: 10px;
-                }
-
-                .daily-challenge__value {
-                    font-size: 12px;
+                    font-size: 14px;
                 }
             `);
         }
@@ -1377,6 +1369,14 @@
         profile_detail__rank.appendChild(countrySSrankDisplay);
 
         profile_detail__values.style.rowGap = "5px";
+
+        //find element with class "profile-detail__chart-numbers profile-detail__chart-numbers--top"
+        var chartNumbers = document.getElementsByClassName("profile-detail__chart-numbers profile-detail__chart-numbers--top")[0];
+
+        //move it 2 parents up
+        var parentOfParentOfChartNumbers = chartNumbers.parentNode.parentNode.parentNode;
+        //make chartNumber a child of parentOfParentOfChartNumbers, at index 0
+        parentOfParentOfChartNumbers.insertBefore(chartNumbers, parentOfParentOfChartNumbers.childNodes[0]);
     }
 
     function getValueDisplay(id, label, value, is_rank = false, tooltip = null) {
@@ -1602,9 +1602,9 @@
             }
             updateLinks();
 
-            chartParent.insertBefore(chartOwner, chartParent.children[1]);
+            chartParent.insertBefore(chartOwner, chartParent.children[0]);
             //insert the toggle after the chart
-            chartParent.insertBefore(toggleLink, chartParent.children[2]);
+            chartParent.insertBefore(toggleLink, chartParent.children[1]);
 
             //completely REMOVES the link if there is no score rank data
             // if (!scoreRankData || scoreRankData.length === 0) {
