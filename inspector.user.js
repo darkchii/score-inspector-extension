@@ -1390,7 +1390,7 @@
         var valueDiv = document.createElement("div");
         valueDiv.className = "value-display__value";
         if (value === 'NaN') {
-            valueDiv.textContent = `${is_rank ? '#' : ''}-`;
+            valueDiv.textContent = `-`;
             div.setAttribute("data-html-title", `<div>Data not available</div>`);
             div.setAttribute("title", "");
         } else {
