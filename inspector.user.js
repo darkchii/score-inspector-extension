@@ -925,6 +925,11 @@
 
     function setBigUserCardClanTag(card, clan) {
         const usernameElement = card.getElementsByClassName("user-card__username u-ellipsis-pre-overflow")[0];
+
+        if (usernameElement.getElementsByClassName("inspector_user_tag").length > 0) {
+            return;
+        }
+
         const clanTag = generateTagSpan(clan);
         usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
     }
@@ -1269,7 +1274,7 @@
         const ranks = ["B", "C", "D"];
         ranks.forEach(rank => {
             //if element exists, delete it
-            if(document.getElementById(`inspector_elm_${rank.toLowerCase()}`)) {
+            if (document.getElementById(`inspector_elm_${rank.toLowerCase()}`)) {
                 document.getElementById(`inspector_elm_${rank.toLowerCase()}`).remove();
             }
 
