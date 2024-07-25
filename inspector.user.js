@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-07-25.34
+// @version      2024-07-25.35
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1114,7 +1114,8 @@
             setCompletionistBadges(data.completion);
         }
 
-        if (data) {
+        //if theres more than just .coe
+        if (data && Object.keys(data).length > 1) {
             setOrCreateStatisticsElements(data);
             setNewRankGraph(data.scoreRankHistory, data.scoreRank);
         }
@@ -1214,6 +1215,10 @@
                 })
             });
             user_data = await _user_data.json();
+
+            if(!user_data || user_data.error) {
+                user_data = {};
+            }
 
             //get COE data
             const coe_data = await fetch(`${SCORE_INSPECTOR_API}extension/coe/${user_id}`);
@@ -1375,7 +1380,12 @@
 
         //grades done
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
-        const profile_detail__values = document.getElementsByClassName("profile-detail__values")[2];
+        let profile_stat_index = 1;
+        //if class daily-challenge exists, index is 2
+        if (document.getElementsByClassName("daily-challenge").length > 0) {
+            profile_stat_index = 2;
+        }
+        const profile_detail__values = document.getElementsByClassName("profile-detail__values")[profile_stat_index];
 
         profile_detail__rank.style.gap = "8px";
 
