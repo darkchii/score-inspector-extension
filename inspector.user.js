@@ -47,6 +47,18 @@
         "Score"
     ]
 
+    const COE_ATTENDEE_TYPES = {
+        'SPECTATOR_ONE_DAY' : 'Spectator (1 day)',
+        'SPECTATOR_ALL_DAYS' : 'Spectator (all days)',
+        'BYOC_ALL_DAYS' : 'BYOC (all days)',
+        'SPECTATOR_MIDWEEK': 'Spectator (midweek)',
+        'SPECTATOR_WEEKEND': 'Spectator (weekend)',
+        'BYOC_WEEKEND': 'BYOC (weekend)',
+        'BYOC_MIDWEEK': 'BYOC (midweek)',
+        'CAVE_MAIN': 'Cave',
+        'CAVE_GUEST': 'Cave Guest',
+    }
+
     // let CURRENT_GRAPH = 'Performance';
     let CURRENT_GRAPH = GM_getValue("inspector_current_graph", "Performance");
 
@@ -1089,6 +1101,10 @@
 
         const data = await getUserData(user_id, username, mode);
 
+        if (data.coe && !data.coe.error) {
+            setOrCreateCoeBannerElement(data.coe);
+        }
+
         if (data.clan && !data.clan?.pending) {
             setOrCreateUserClanTagElement(data.clan.clan);
             setOrCreateUserClanBannerElement(data.clan.clan);
@@ -1183,10 +1199,9 @@
 
     async function getUserData(user_id, username, mode = "osu") {
         const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
-        let data = null;
+        let user_data = null;
         try {
-            const url = SCORE_INSPECTOR_API + `extension/profile`;
-            const response = await fetch(url, {
+            const _user_data = await fetch(`${SCORE_INSPECTOR_API}extension/profile`, {
                 headers: {
                     "Access-Control-Allow-Origin": "*",
                     "Content-Type": "application/json"
@@ -1198,9 +1213,24 @@
                     username: username
                 })
             });
-            data = await response.json();
+            user_data = await _user_data.json();
 
-            return data;
+            //get COE data
+            const coe_data = await fetch(`${SCORE_INSPECTOR_API}extension/coe/${user_id}`);
+            user_data.coe = await coe_data.json();
+
+            if(!user_data.coe.error) {
+                //capitalize first letter of each word in the roles
+                user_data.coe.user.roles = user_data.coe.user.roles.map(role => role.replace(/\b\w/g, l => l.toUpperCase()));
+
+                //if affiliate is not null, add "Affiliate" to the roles
+                if(user_data.coe.user.affiliate) {
+                    user_data.coe.user.roles.push("Affiliate");
+                }
+            }
+
+            console.log(user_data);
+            return user_data;
         } catch (err) {
             console.error(err);
             return null;
@@ -1478,28 +1508,7 @@
             //remove it and re-add it
             clanBanner.remove();
         }
-        clanBanner = document.createElement("div");
-
-        clanBanner.style.width = "100%";
-        clanBanner.style.height = "60px";
-        // clanBanner.style.backgroundColor = `#${clan.color}`;
-        if (clan.header_image_url) {
-            clanBanner.style.backgroundImage = `url(${clan.header_image_url})`;
-            clanBanner.style.backgroundSize = "cover";
-            clanBanner.style.backgroundPosition = "center";
-        }
-        clanBanner.id = "inspector_user_banner";
-
-        //text overlay
-        var overlay = document.createElement("div");
-        overlay.style.width = "100%";
-        overlay.style.height = "100%";
-        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-        overlay.style.display = "flex";
-        overlay.style.alignItems = "center";
-        overlay.style.justifyContent = "left";
-        overlay.style.paddingLeft = "50px";
-        clanBanner.appendChild(overlay);
+        clanBanner = getBaseBannerElement("inspector_user_banner", clan.header_image_url);
 
         //clan tag
         var clanTag = document.createElement("div");
@@ -1507,10 +1516,80 @@
         clanTag.style.fontWeight = "light";
         clanTag.style.fontSize = "20px";
         clanTag.innerHTML = `<p style="margin-bottom: 0px;">Clan member of <a href="https://score.kirino.sh/clan/${clan.id}" target="_blank"><span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</a></p>`;
+        var overlay = clanBanner.querySelector("#inspector_user_banner_overlay");
         overlay.appendChild(clanTag);
 
         //insert it after the cover
         mainElement.insertBefore(clanBanner, mainElement.children[coverIndex + 2]);
+    }
+
+    function setOrCreateCoeBannerElement(coe) {
+        //find data-page-id "main"
+        const mainElement = document.querySelector("[data-page-id='main']");
+
+        //find index of class "profile-cover profile-info--cover"
+        const coverIndex = Array.from(mainElement.children).findIndex(child => child.classList.contains("profile-cover"));
+
+        var coeBanner = document.getElementById("inspector_coe_banner");
+        if (coeBanner) {
+            //remove it and re-add it
+            coeBanner.remove();
+        }
+        coeBanner = getBaseBannerElement("inspector_coe_banner", "https://kirino.sh/d/coe_bg.png", false);
+
+        // var coeTag = document.createElement("div");
+        // coeTag.style.color = "white";
+        // coeTag.style.fontWeight = "light";
+        // coeTag.style.fontSize = "20px";
+        // coeTag.innerHTML = `<p style="margin-bottom: 0px;">COE Attendee</p>`;
+        var overlay = coeBanner.querySelector("#inspector_user_banner_overlay");
+        // overlay.appendChild(coeTag);
+
+        //coe logo on the left, followed by text
+        //logo: https://kirino.sh/d/coe_logo.png (automatic width, full height)
+        //text: COE Attendee above, temp text under it
+        var rawHtml = `
+            <div style="display: flex; align-items: center; height: 100%;">
+                <a href="https://cavoeboy.com/" target="_blank" style="display: flex; align-items: center; height: 100%;">
+                    <img src="https://kirino.sh/d/coe_logo.svg" style="height: 55%; margin-right: 10px;">
+                </a>
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <p style="margin-bottom: 0px; font-size: 18px;">Attendee${coe.user.roles?.length > 0 ? " / "+coe.user.roles.join(" / ") : ""}</p>
+                    <p style="margin-bottom: 0px; font-size: 12px;">${COE_ATTENDEE_TYPES[coe.ticketType] ?? "Unknown Ticket Type"}</p>
+                </div>
+            </div>
+        `;
+        overlay.innerHTML = rawHtml;
+
+        //insert it after the cover
+        mainElement.insertBefore(coeBanner, mainElement.children[coverIndex + 2]);
+    }
+
+    function getBaseBannerElement(id, image, overlay_tint = true) {
+        var banner = document.createElement("div");
+        banner.id = id;
+
+        banner.style.width = "100%";
+        banner.style.height = "60px";
+
+        if (image) {
+            banner.style.backgroundImage = `url(${image})`;
+            banner.style.backgroundSize = "cover";
+            banner.style.backgroundPosition = "center";
+        }
+
+        var overlay = document.createElement("div");
+        overlay.style.width = "100%";
+        overlay.style.height = "100%";
+        overlay.style.backgroundColor = `rgba(0, 0, 0, ${overlay_tint ? 0.7 : 0})`;
+        overlay.style.display = "flex";
+        overlay.style.alignItems = "center";
+        overlay.style.justifyContent = "left";
+        overlay.style.paddingLeft = "50px";
+        overlay.id = "inspector_user_banner_overlay";
+        banner.appendChild(overlay);
+
+        return banner;
     }
 
     let activeChart = 'pp';
