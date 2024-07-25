@@ -813,6 +813,11 @@
                             _func();
                         }
                     }
+
+                    //if qtip--user-card is added or enabled, run the function
+                    if (mutation.target.classList.contains("qtip--user-card")) {
+                        _func();
+                    }
                 }
             }
         });
