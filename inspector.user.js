@@ -799,7 +799,11 @@
                     }
 
                     if (window.location.href.includes("/beatmapsets/")) {
-                        if (mutation.target.classList.contains("beatmapset-scoreboard__main")) {
+                        if (
+                            mutation.target.classList.contains("beatmapset-scoreboard__main") ||
+                            mutation.target.classList.contains("beatmap-scoreboard-table") ||
+                            mutation.target.classList.contains("beatmap-scoreboard-table__body") ||
+                            mutation.target.classList.contains("osuplus-table")) {
                             _func();
                         }
                     }
@@ -1106,12 +1110,13 @@
     }
 
     let _userClansCache = [];
+    let _dontFetchFuture = []; //these ids did NOT returns from the fetch, so we don't fetch them again until the page is reloaded
     async function getUsersClans(user_ids) {
-        // //first get all the cached users
+        let _user_ids = [...user_ids];
         let cached_users = [];
         if (_userClansCache.length > 0) {
-            for (let i = 0; i < user_ids.length; i++) {
-                const user = _userClansCache.find(c => c.osu_id == user_ids[i]);
+            for (let i = 0; i < _user_ids.length; i++) {
+                const user = _userClansCache.find(c => c.osu_id == _user_ids[i]);
                 if (user) {
                     cached_users.push(user);
                 }
@@ -1120,11 +1125,17 @@
 
         // filter out the cached users from the user_ids
         if (cached_users.length > 0) {
-            user_ids = user_ids.filter(id => !cached_users.find(c => c.osu_id == id));
+            _user_ids = _user_ids.filter(id => !cached_users.find(c => c.osu_id.toString() == id));
+        }
+
+        //filter out the _dontFetchFuture from the user_ids
+        if (_dontFetchFuture.length > 0) {
+            _user_ids = _user_ids.filter(id => !_dontFetchFuture.includes(id));
         }
 
         let uncached_users = [];
-        if (user_ids.length > 0) {
+
+        if (_user_ids.length > 0) {
             const url = SCORE_INSPECTOR_API + "extension/clans/users";
             const response = await fetch(url, {
                 headers: {
@@ -1133,7 +1144,7 @@
                 },
                 method: "POST",
                 body: JSON.stringify({
-                    ids: user_ids
+                    ids: _user_ids
                 })
             });
 
@@ -1144,6 +1155,8 @@
                 uncached_users = [];
             } else {
                 uncached_users = JSON.parse(JSON.stringify(data));
+                //all IDs that are in _user_ids but not in uncached_users, we don't fetch them again
+                _dontFetchFuture = _user_ids.filter(id => !uncached_users.find(c => c.osu_id.toString() == id));
             }
         }
 
