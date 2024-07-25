@@ -50,10 +50,6 @@
     // let CURRENT_GRAPH = 'Performance';
     let CURRENT_GRAPH = GM_getValue("inspector_current_graph", "Performance");
 
-    document.addEventListener("turbolinks:load", async function () {
-        await run();
-    });
-
     //lets script know what elements to wait for before running
     const PAGE_ELEMENT_WAIT_LIST = {
         'user_page': '.profile-info__name',
@@ -434,7 +430,7 @@
         await runScoreRankCompletionPercentages();
     }
 
-    run();
+    run().then(() => document.addEventListener("turbolinks:load", run));
 
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
