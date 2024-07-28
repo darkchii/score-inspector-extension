@@ -48,9 +48,9 @@
     ]
 
     const COE_ATTENDEE_TYPES = {
-        'SPECTATOR_ONE_DAY' : 'Spectator (1 day)',
-        'SPECTATOR_ALL_DAYS' : 'Spectator (all days)',
-        'BYOC_ALL_DAYS' : 'BYOC (all days)',
+        'SPECTATOR_ONE_DAY': 'Spectator (1 day)',
+        'SPECTATOR_ALL_DAYS': 'Spectator (all days)',
+        'BYOC_ALL_DAYS': 'BYOC (all days)',
         'SPECTATOR_MIDWEEK': 'Spectator (midweek)',
         'SPECTATOR_WEEKEND': 'Spectator (weekend)',
         'BYOC_WEEKEND': 'BYOC (weekend)',
@@ -1107,7 +1107,7 @@
 
         if (data.clan && !data.clan?.pending) {
             setOrCreateUserClanTagElement(data.clan.clan);
-            setOrCreateUserClanBannerElement(data.clan.clan);
+            setOrCreateUserClanBannerElement(data.clan);
         }
 
         if (data.completion) {
@@ -1216,7 +1216,7 @@
             });
             user_data = await _user_data.json();
 
-            if(!user_data || user_data.error) {
+            if (!user_data || user_data.error) {
                 user_data = {};
             }
 
@@ -1224,12 +1224,12 @@
             const coe_data = await fetch(`${SCORE_INSPECTOR_API}extension/coe/${user_id}`);
             user_data.coe = await coe_data.json();
 
-            if(!user_data.coe.error) {
+            if (!user_data.coe.error) {
                 //capitalize first letter of each word in the roles
                 user_data.coe.user.roles = user_data.coe.user.roles.map(role => role.replace(/\b\w/g, l => l.toUpperCase()));
 
                 //if affiliate is not null, add "Affiliate" to the roles
-                if(user_data.coe.user.affiliate) {
+                if (user_data.coe.user.affiliate) {
                     user_data.coe.user.roles.push("Affiliate");
                 }
             }
@@ -1506,7 +1506,7 @@
         userTagParent.target = "_blank";
     }
 
-    function setOrCreateUserClanBannerElement(clan) {
+    function setOrCreateUserClanBannerElement(user_clan) {
         //find data-page-id "main"
         const mainElement = document.querySelector("[data-page-id='main']");
 
@@ -1518,16 +1518,29 @@
             //remove it and re-add it
             clanBanner.remove();
         }
-        clanBanner = getBaseBannerElement("inspector_user_banner", clan.header_image_url);
+        clanBanner = getBaseBannerElement("inspector_user_banner", user_clan.clan.header_image_url);
 
-        //clan tag
-        var clanTag = document.createElement("div");
-        clanTag.style.color = "white";
-        clanTag.style.fontWeight = "light";
-        clanTag.style.fontSize = "20px";
-        clanTag.innerHTML = `<p style="margin-bottom: 0px;">Clan member of <a href="https://score.kirino.sh/clan/${clan.id}" target="_blank"><span style='color:#${clan.color}'>[${clan.tag}]</span> ${clan.name}</a></p>`;
+        var rawHtml = `
+            <div style="display: flex; align-items: center; height: 100%;">
+                <div style="display: flex; flex-direction: row; justify-content: center;">
+                    <div style="display: flex; flex-direction: column; justify-content: center; margin-right: 1rem;">
+                        <p style="margin-bottom: 0px; font-size: 22px; color: white;">
+                            <i class="fas fa-users"></i>
+                        </p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                        <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://score.kirino.sh/clan/${user_clan.clan.id}" target="_blank"><span style='color:#${user_clan.clan.color}'>[${user_clan.clan.tag}]</span> ${user_clan.clan.name}</a></p>
+                        <p style="margin-bottom: 0px; font-size: 12px;">Since ${new Date(user_clan.join_date).toLocaleDateString("en-GB", {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                        })}</p>
+                    </div>
+                </div>
+            </div>
+        `;
         var overlay = clanBanner.querySelector("#inspector_user_banner_overlay");
-        overlay.appendChild(clanTag);
+        overlay.innerHTML = rawHtml;
 
         //insert it after the cover
         mainElement.insertBefore(clanBanner, mainElement.children[coverIndex + 2]);
@@ -1564,7 +1577,7 @@
                     <img src="https://kirino.sh/d/coe_logo.svg" style="height: 55%; margin-right: 10px;">
                 </a>
                 <div style="display: flex; flex-direction: column; justify-content: center;">
-                    <p style="margin-bottom: 0px; font-size: 18px;">Attendee${coe.user.roles?.length > 0 ? " / "+coe.user.roles.join(" / ") : ""}</p>
+                    <p style="margin-bottom: 0px; font-size: 18px;">Attendee${coe.user.roles?.length > 0 ? " / " + coe.user.roles.join(" / ") : ""}</p>
                     <p style="margin-bottom: 0px; font-size: 12px;">${COE_ATTENDEE_TYPES[coe.ticketType] ?? "Unknown Ticket Type"}</p>
                 </div>
             </div>
