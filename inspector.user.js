@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-08-03.37
+// @version      2024-08-03.38
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -436,6 +436,7 @@
             `);
             await handleLeaderboardPage();
         }
+        console.log('hello>????');
 
         await runUserPage();
         await runUsernames();
@@ -1000,16 +1001,16 @@
         }
     }
 
-    async function runScoreRankChanges(){
+    async function runScoreRankChanges() {
         //url has to match: "/rankings/{mode}/score{?page=1}"
         const _url = window.location.href;
         const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/score/)[1];
-        if(!mode){
+        if (!mode) {
             return;
         }
 
         const mode_id = MODE_SLUGS_ALT.indexOf(mode);
-        if(mode_id === -1){
+        if (mode_id === -1) {
             return;
         }
 
@@ -1051,7 +1052,7 @@
 
         const data = await result.json();
 
-        if(!data || data.error){
+        if (!data || data.error) {
             console.error(data.error);
             return;
         }
@@ -1061,9 +1062,9 @@
 
             //ranking-page-table__column ranking-page-table__column--rank-change-icon ranking-page-table__column--rank-change-none
             td.classList.add('ranking-page-table__column', 'ranking-page-table__column--rank-change-icon');
-            if(change === 0){
+            if (change === 0) {
                 td.classList.add('ranking-page-table__column--rank-change-none');
-            } else if(change > 0){
+            } else if (change > 0) {
                 td.classList.add('ranking-page-table__column--rank-change-up');
             } else {
                 td.classList.add('ranking-page-table__column--rank-change-down');
@@ -1078,32 +1079,32 @@
             //ranking-page-table__column ranking-page-table__column--rank-change-value ranking-page-table__column--rank-change-none
             td.classList.add('ranking-page-table__column', 'ranking-page-table__column--rank-change-value');
 
-            if(change === 0){
+            if (change === 0) {
                 td.classList.add('ranking-page-table__column--rank-change-none');
-            }else if(change > 0){
+            } else if (change > 0) {
                 td.classList.add('ranking-page-table__column--rank-change-up');
-            }else{
+            } else {
                 td.classList.add('ranking-page-table__column--rank-change-down');
             }
 
-            if(change !== 0){
+            if (change !== 0) {
                 td.textContent = Math.abs(change);
             }
 
             return td;
         }
 
-        for(let i = 0; i < rows.length; i++){
+        for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const cells = row.getElementsByTagName('td');
             const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
             const current_rank_str = cells[RANK_INDEX].textContent; //"#1", "#2", etc
             const current_rank = parseInt(current_rank_str.trim().slice(1)); //remove the "#" and parse to int
-            
+
             const rank_change_data = data.find(d => d.osu_id == user_id);
             let change = 0;
 
-            if(rank_change_data){
+            if (rank_change_data) {
                 let old_rank = parseInt(rank_change_data.rank);
                 change = old_rank - current_rank;
             }
@@ -1122,74 +1123,80 @@
 
     //replaces the accuracy column with a completion percentage column
     async function runScoreRankCompletionPercentages() {
-        //check if we are on "/rankings/osu/score" page
-        const _url = window.location.href;
-        if (!_url.includes("/rankings/osu/score")) {
-            return;
-        }
-
-        //wait for class 'ranking-page-table' to load
-        await WaitForElement('.ranking-page-table');
-
-        //get all the rows in the table
-        //rows are in the tbody of the table
-        const table = document.getElementsByClassName('ranking-page-table')[0];
-        const thead = table.getElementsByTagName('thead')[0];
-        const tbody = table.getElementsByTagName('tbody')[0];
-        const rows = tbody.getElementsByTagName('tr');
-        const headerRow = thead.getElementsByTagName('tr')[0];
-
-        //accuracy row is index 2
-        const USER_INDEX = 1;
-        const ACCURACY_INDEX = 2;
-
-        //change header to "Completion"
-        const headerCells = headerRow.getElementsByTagName('th');
-        headerCells[ACCURACY_INDEX].textContent = "Completion";
-
-        //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
-        let ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-            cells[ACCURACY_INDEX].textContent = "-";
-
-            //get the user id from the data-user-id attribute
-            //from column 1, get the the first child element with class 'js-usercard' in it, then get the data-user-id attribute
-            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
-            ids.push(user_id);
-        }
-
-        //comma separated string
-        const id_string = ids.join(',');
-
-        const url = `${SCORE_INSPECTOR_API}users/stats/completion_percentage/${id_string}`;
-        const response = await fetch(url, {
-            headers: {
-                "Access-Control-Allow-Origin": "*"
-            }
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            console.error(data.error);
-            return;
-        }
-
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
-            let completion_percentage = data.find(d => d.user_id == user_id)?.completion ?? "-";
-            if (completion_percentage !== "-") {
-                //cap it at 100%, used profile stats for SS,S,A, which may be different from osu!alt
-                completion_percentage = Math.min(completion_percentage, 100);
-                completion_percentage = completion_percentage.toFixed(2);
+        try {
+            //check if we are on "/rankings/osu/score" page
+            const _url = window.location.href;
+            if (!_url.includes("/rankings/osu/score")) {
+                return;
             }
 
-            //round to 2 decimal places
-            cells[ACCURACY_INDEX].textContent = `${completion_percentage}%`;
+            //wait for class 'ranking-page-table' to load
+            await WaitForElement('.ranking-page-table');
+
+            //get all the rows in the table
+            //rows are in the tbody of the table
+            const table = document.getElementsByClassName('ranking-page-table')[0];
+            const thead = table.getElementsByTagName('thead')[0];
+            const tbody = table.getElementsByTagName('tbody')[0];
+            const rows = tbody.getElementsByTagName('tr');
+            const headerRow = thead.getElementsByTagName('tr')[0];
+
+            //accuracy row is index 2
+            const USER_INDEX = 1;
+            const ACCURACY_INDEX = 2;
+
+            //change header to "Completion"
+            const headerCells = headerRow.getElementsByTagName('th');
+            headerCells[ACCURACY_INDEX].textContent = "Completion";
+
+            //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
+            let ids = [];
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                cells[ACCURACY_INDEX].textContent = "-";
+
+                //get the user id from the data-user-id attribute
+                //from column 1, get the the first child element with class 'js-usercard' in it, then get the data-user-id attribute
+                const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
+                ids.push(user_id);
+            }
+
+            //comma separated string
+            const id_string = ids.join(',');
+
+            const url = `${SCORE_INSPECTOR_API}users/stats/completion_percentage/${id_string}`;
+            const response = await fetch(url, {
+                headers: {
+                    "Access-Control-Allow-Origin": "*"
+                },
+                signal: AbortSignal.timeout(5000)
+            });
+
+
+            const data = await response.json();
+
+            if (data.error) {
+                console.error(data.error);
+                return;
+            }
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
+                let completion_percentage = data.find(d => d.user_id == user_id)?.completion ?? "-";
+                if (completion_percentage !== "-") {
+                    //cap it at 100%, used profile stats for SS,S,A, which may be different from osu!alt
+                    completion_percentage = Math.min(completion_percentage, 100);
+                    completion_percentage = completion_percentage.toFixed(2);
+                }
+
+                //round to 2 decimal places
+                cells[ACCURACY_INDEX].textContent = `${completion_percentage}%`;
+            }
+        } catch (e) {
+            console.error(e);
         }
     }
 
@@ -1652,10 +1659,10 @@
                     <div style="display: flex; flex-direction: column; justify-content: center;">
                         <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://score.kirino.sh/clan/${user_clan.clan.id}" target="_blank"><span style='color:#${user_clan.clan.color}'>[${user_clan.clan.tag}]</span> ${user_clan.clan.name}</a></p>
                         <p style="margin-bottom: 0px; font-size: 12px;">Since ${new Date(user_clan.join_date).toLocaleDateString("en-GB", {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                        })}</p>
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        })}</p>
                     </div>
                 </div>
             </div>
