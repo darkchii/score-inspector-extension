@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-07-30.36
+// @version      2024-08-03.37
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -440,6 +440,7 @@
         await runUserPage();
         await runUsernames();
         await runScoreRankCompletionPercentages();
+        await runScoreRankChanges();
     }
 
     run().then(() => document.addEventListener("turbolinks:load", run));
@@ -997,6 +998,126 @@
             }
             card.insertBefore(clanTag, card.childNodes[0]);
         }
+    }
+
+    async function runScoreRankChanges(){
+        //url has to match: "/rankings/{mode}/score{?page=1}"
+        const _url = window.location.href;
+        const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/score/)[1];
+        if(!mode){
+            return;
+        }
+
+        const mode_id = MODE_SLUGS_ALT.indexOf(mode);
+        if(mode_id === -1){
+            return;
+        }
+
+        await WaitForElement('.ranking-page-table');
+
+        const table = document.getElementsByClassName('ranking-page-table')[0];
+        const thead = table.getElementsByTagName('thead')[0];
+        const tbody = table.getElementsByTagName('tbody')[0];
+        const rows = tbody.getElementsByTagName('tr');
+        const headerRow = thead.getElementsByTagName('tr')[0];
+
+        const headerCells = headerRow.getElementsByTagName('th');
+
+        const RANK_INDEX = 0;
+        const USER_INDEX = 1;
+        const RANK_CHANGE_INDEX = 1; //this gets inserted at index 1
+
+        //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
+        let ids = [];
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+
+            //get the user id from the data-user-id attribute
+            //from column 1, get the the first child element with class 'js-usercard' in it, then get the data-user-id attribute
+            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
+            ids.push(user_id);
+        }
+
+        //get data
+        //post with user_ids
+        const result = await fetch(`${SCORE_INSPECTOR_API}extension/score_rank_history/${mode_id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ids: ids })
+        });
+
+        const data = await result.json();
+
+        if(!data || data.error){
+            console.error(data.error);
+            return;
+        }
+
+        const getRankChangeIcon = (change) => {
+            const td = document.createElement('td');
+
+            //ranking-page-table__column ranking-page-table__column--rank-change-icon ranking-page-table__column--rank-change-none
+            td.classList.add('ranking-page-table__column', 'ranking-page-table__column--rank-change-icon');
+            if(change === 0){
+                td.classList.add('ranking-page-table__column--rank-change-none');
+            } else if(change > 0){
+                td.classList.add('ranking-page-table__column--rank-change-up');
+            } else {
+                td.classList.add('ranking-page-table__column--rank-change-down');
+            }
+
+            return td;
+        }
+
+        const getRankChangeText = (change) => {
+            const td = document.createElement('td');
+
+            //ranking-page-table__column ranking-page-table__column--rank-change-value ranking-page-table__column--rank-change-none
+            td.classList.add('ranking-page-table__column', 'ranking-page-table__column--rank-change-value');
+
+            if(change === 0){
+                td.classList.add('ranking-page-table__column--rank-change-none');
+            }else if(change > 0){
+                td.classList.add('ranking-page-table__column--rank-change-up');
+            }else{
+                td.classList.add('ranking-page-table__column--rank-change-down');
+            }
+
+            if(change !== 0){
+                td.textContent = Math.abs(change);
+            }
+
+            return td;
+        }
+
+        for(let i = 0; i < rows.length; i++){
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
+            const current_rank_str = cells[RANK_INDEX].textContent; //"#1", "#2", etc
+            const current_rank = parseInt(current_rank_str.trim().slice(1)); //remove the "#" and parse to int
+            
+            const rank_change_data = data.find(d => d.osu_id == user_id);
+            let change = 0;
+
+            if(rank_change_data){
+                let old_rank = parseInt(rank_change_data.rank);
+                change = old_rank - current_rank;
+            }
+
+            const rank_change_text = getRankChangeText(change);
+            row.insertBefore(rank_change_text, cells[RANK_CHANGE_INDEX]);
+
+            const rank_change_icon = getRankChangeIcon(change);
+            row.insertBefore(rank_change_icon, cells[RANK_CHANGE_INDEX]);
+        }
+
+        //insert empty header cells for rank change at RANK_CHANGE_INDEX
+        headerRow.insertBefore(document.createElement('th'), headerCells[RANK_CHANGE_INDEX]);
+        headerRow.insertBefore(document.createElement('th'), headerCells[RANK_CHANGE_INDEX]);
     }
 
     //replaces the accuracy column with a completion percentage column
