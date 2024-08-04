@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-08-03.38
+// @version      2024-08-04.39
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -436,15 +436,20 @@
             `);
             await handleLeaderboardPage();
         }
-        console.log('hello>????');
 
         await runUserPage();
         await runUsernames();
         await runScoreRankCompletionPercentages();
         await runScoreRankChanges();
+
+
     }
 
-    run().then(() => document.addEventListener("turbolinks:load", run));
+    function start(){
+        run();
+        document.addEventListener("turbolinks:load", run)
+    }
+    start();
 
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
