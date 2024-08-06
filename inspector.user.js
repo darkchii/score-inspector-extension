@@ -1009,7 +1009,7 @@
     async function runScoreRankChanges() {
         //url has to match: "/rankings/{mode}/score{?page=1}"
         const _url = window.location.href;
-        const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/score/)[1];
+        const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/score/)?.[1];
         if (!mode) {
             return;
         }
