@@ -1564,11 +1564,8 @@
 
         //find element with class "profile-detail__chart-numbers profile-detail__chart-numbers--top"
         var chartNumbers = document.getElementsByClassName("profile-detail__chart-numbers profile-detail__chart-numbers--top")[0];
-
-        //move it 2 parents up
-        var parentOfParentOfChartNumbers = chartNumbers.parentNode.parentNode.parentNode;
-        //make chartNumber a child of parentOfParentOfChartNumbers, at index 0
-        parentOfParentOfChartNumbers.insertBefore(chartNumbers, parentOfParentOfChartNumbers.childNodes[0]);
+        var profileDetails = document.getElementsByClassName("profile-detail")[0];
+        profileDetails.insertBefore(chartNumbers, profileDetails.childNodes[0]);
     }
 
     function getValueDisplay(id, label, value, is_rank = false, tooltip = null) {
