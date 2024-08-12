@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-08-12.42
+// @version      2024-08-12.43
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1732,7 +1732,8 @@
         banner.style.height = "60px";
 
         if (image) {
-            banner.style.backgroundImage = `url(${image})`;
+            const parsed_image = new URL(image);
+            banner.style.backgroundImage = `url(${parsed_image})`;
             banner.style.backgroundSize = "cover";
             banner.style.backgroundPosition = "center";
         }
