@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-08-06.40
+// @version      2024-08-12.41
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1628,7 +1628,7 @@
         userTagElement.style.fontWeight = "bold";
 
         //give it a tooltip
-        userTagParent.setAttribute("data-html-title", `<div>${clan.name}</div>`);
+        userTagParent.setAttribute("data-title", `<div>${clan.name}</div>`);
         userTagParent.setAttribute("title", "");
 
         //make it a link to the clan page
@@ -1659,7 +1659,7 @@
                         </p>
                     </div>
                     <div style="display: flex; flex-direction: column; justify-content: center;">
-                        <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://score.kirino.sh/clan/${user_clan.clan.id}" target="_blank"><span style='color:#${user_clan.clan.color}'>[${user_clan.clan.tag}]</span> ${user_clan.clan.name}</a></p>
+                        <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://score.kirino.sh/clan/${user_clan.clan.id}" target="_blank"><span id='inspector_user_clan_tag' style='color:#${user_clan.clan.color}'></span> <span id='inspector_user_clan_name'></span></a></p>
                         <p style="margin-bottom: 0px; font-size: 12px;">Since ${new Date(user_clan.join_date).toLocaleDateString("en-GB", {
             day: 'numeric',
             month: 'long',
@@ -1671,6 +1671,12 @@
         `;
         var overlay = clanBanner.querySelector("#inspector_user_banner_overlay");
         overlay.innerHTML = rawHtml;
+
+        var clanTagElement = document.getElementById("inspector_user_clan_tag");
+        clanTagElement.innerText = `[${user_clan.clan.tag}]`;
+
+        var clanNameElement = document.getElementById("inspector_user_clan_name");
+        clanNameElement.innerText = user_clan.clan.name;
 
         //insert it after the cover
         mainElement.insertBefore(clanBanner, mainElement.children[coverIndex + 2]);
