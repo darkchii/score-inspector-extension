@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-08-12.43
+// @version      2024-09-04.44
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1513,11 +1513,11 @@
 
         //grades done
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
-        let profile_stat_index = 1;
+        let profile_stat_index = 2;
         //if class daily-challenge exists, index is 2
-        if (document.getElementsByClassName("daily-challenge").length > 0) {
-            profile_stat_index = 2;
-        }
+        // if (document.getElementsByClassName("daily-challenge").length > 0) {
+        //     profile_stat_index = 2;
+        // }
         const profile_detail__values = document.getElementsByClassName("profile-detail__values")[profile_stat_index];
 
         profile_detail__rank.style.gap = "8px";
