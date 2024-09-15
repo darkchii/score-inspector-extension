@@ -446,7 +446,17 @@
             }
 
             const beatmapset_id = window.location.href.split("/")[4];
+            if(!parseInt(beatmapset_id)) {
+                console.error("Invalid beatmapset id");
+                return;
+            }
             const active_beatmap_id = window.location.href.replace(`https://osu.ppy.sh/beatmapsets/${beatmapset_id}/`, "").split("/")[0];
+
+            if(!parseInt(active_beatmap_id)) {
+                console.error("Invalid beatmap id");
+                return;
+            }
+
             const new_background_url = `https://catboy.best/preview/background/${active_beatmap_id}`;
             const cover = document.getElementsByClassName('beatmapset-cover beatmapset-cover--full')[0];
             const current_background_url = cover.style.getPropertyValue('--bg').replace('url(', '').replace(')', '');
