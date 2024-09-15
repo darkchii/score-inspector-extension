@@ -424,6 +424,7 @@
         await runUsernames();
         await runScoreRankCompletionPercentages();
         await runScoreRankChanges();
+        await runBeatmapPage();
     }
 
     function start() {
@@ -431,6 +432,35 @@
         document.addEventListener("turbolinks:load", run)
     }
     start();
+
+    async function runBeatmapPage() {
+        if (!window.location.href.includes("/beatmapsets/")) {
+            return;
+        }
+
+        //cache original background urls
+        const orig_bg_cache = {};
+        const runner = async () => {
+            if (!window.location.href.includes("/beatmapsets/")) {
+                return;
+            }
+
+            const beatmapset_id = window.location.href.split("/")[4];
+            const active_beatmap_id = window.location.href.replace(`https://osu.ppy.sh/beatmapsets/${beatmapset_id}/`, "").split("/")[0];
+            const new_background_url = `https://bg.kirino.sh/get/${active_beatmap_id}`;
+            const cover = document.getElementsByClassName('beatmapset-cover beatmapset-cover--full')[0];
+            const current_background_url = cover.style.getPropertyValue('--bg').replace('url(', '').replace(')', '');
+            if(!orig_bg_cache[beatmapset_id]) {
+                orig_bg_cache[beatmapset_id] = current_background_url;
+            }
+            cover.style.setProperty('--bg', `url(${new_background_url}), url(${orig_bg_cache[beatmapset_id]})`);
+        }
+
+        window.addEventListener('inspector_url_changed', (event) => {
+            runner();
+        })
+        runner();
+    }
 
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
@@ -756,7 +786,7 @@
                 a.setAttribute("data-content", item.attr);
 
                 let is_active = url === item.link;
-                if(!is_active){
+                if (!is_active) {
                     is_active = url.includes(`${item.link}/`) || url.includes(`${item.link}?`);
                 }
 
@@ -1137,7 +1167,7 @@
                 if (format) {
                     td.textContent = formatNumber(change);
                     td.title = change.toLocaleString();
-                }else{
+                } else {
                     td.textContent = Math.abs(change);
                 }
             }
@@ -1166,7 +1196,7 @@
                 change_rank = old_rank - current_rank;
                 change_score = current_score - old_score;
 
-                if(!rank_change_date){
+                if (!rank_change_date) {
                     rank_change_date = rank_change_data.date;
                 }
             }
@@ -1193,10 +1223,10 @@
         headerRow.insertBefore(document.createElement('th'), headerCells[SCORE_CHANGE_INDEX]);
         headerRow.insertBefore(document.createElement('th'), headerCells[SCORE_CHANGE_INDEX]);
 
-        if(rank_change_date){
+        if (rank_change_date) {
             //get the 2nd pagination
             const pagination = document.getElementsByClassName("pagination-v2")[1];
-    
+
             //below this, add a text that tells us from what date the score difference is from
             const dateText = document.createElement("div");
             dateText.classList.add("ranking-page-table__date");
@@ -2052,7 +2082,7 @@
         _chart_data = data;
         _chart = new Chart(ctx, data);
     }
-    
+
     //when finished resizing window, regenerate the chart (just resize wont work due to how to site works)
     window.addEventListener('resize', () => {
         if (_chart) {
@@ -2181,7 +2211,7 @@
         return null;
     }
 
-    function formatNumber(number){
+    function formatNumber(number) {
         //convert to K, M, B, etc
         if (number < 1000) {
             return number;
@@ -2194,4 +2224,16 @@
         const scaled = number / scale;
         return scaled.toFixed(1) + suffix;
     }
+
+    //url observer
+    //triggers events when the url changes
+
+    let currentUrl = window.location.href;
+
+    setInterval(() => {
+        if (currentUrl !== window.location.href) {
+            currentUrl = window.location.href;
+            window.dispatchEvent(new Event('inspector_url_changed'));
+        }
+    }, 1000);
 })();
