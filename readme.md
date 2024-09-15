@@ -14,6 +14,8 @@ Works on most browsers. You may need to enable "Developer Mode" in extension set
 - [STD] Adds total clears and B/C/D grade counts to profiles
 - [STD] Adds completion percentage to profile and score rank leaderboards (in place of Accuracy percentage)
 - [ALL] Adds Top 50s amount
+- [STD] Custom leaderboards
+- [ALL] Per-difficulty backgrounds on beatmap pages (ranked + loved only)
 
 *Score rank history started in August 2023 for standard, and in June 2024 for other modes.*
 
