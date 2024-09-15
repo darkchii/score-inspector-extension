@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-09-04.44
+// @version      2024-09-09.45
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -1916,6 +1916,8 @@
         }
     }
 
+    let _chart = null;
+    let _chart_data = null;
     function updateGraph(rank_data, rank_type) {
         let ctx = document.getElementById("custom_rank_chart");
         //destroy previous chart
@@ -2000,9 +2002,17 @@
             }
         };
 
-        //also add left/right padding
-        new Chart(ctx, data);
+        _chart_data = data;
+        _chart = new Chart(ctx, data);
     }
+    
+    //when finished resizing window, regenerate the chart (just resize wont work due to how to site works)
+    window.addEventListener('resize', () => {
+        if (_chart) {
+            _chart.destroy();
+            _chart = new Chart(document.getElementById("custom_rank_chart"), _chart_data);
+        }
+    });
 
     const getOrCreateTooltip = (chart) => {
         let tooltipEl = chart.canvas.parentNode.querySelector('div');
