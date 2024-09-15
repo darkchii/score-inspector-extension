@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-09-15.46
+// @version      2024-09-16.47
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -447,7 +447,7 @@
 
             const beatmapset_id = window.location.href.split("/")[4];
             const active_beatmap_id = window.location.href.replace(`https://osu.ppy.sh/beatmapsets/${beatmapset_id}/`, "").split("/")[0];
-            const new_background_url = `https://bg.kirino.sh/get/${active_beatmap_id}`;
+            const new_background_url = `https://catboy.best/preview/background/${active_beatmap_id}`;
             const cover = document.getElementsByClassName('beatmapset-cover beatmapset-cover--full')[0];
             const current_background_url = cover.style.getPropertyValue('--bg').replace('url(', '').replace(')', '');
             if(!orig_bg_cache[beatmapset_id]) {
