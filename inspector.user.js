@@ -360,13 +360,17 @@
             attr: "multiplayer",
             link: "/multiplayer/rooms/latest"
         }, {
+            name: "daily challenge",
+            attr: "daily-challenge",
+            link: "/rankings/daily-challenge"
+        }, {
             name: "seasons",
             attr: "seasons",
             link: "/seasons/latest"
         }, {
             name: "spotlights (old)",
             attr: "spotlights",
-            link: "/ranking/osu/charts"
+            link: "/rankings/osu/charts"
         }, {
             name: "kudosu",
             attr: "kudosu",
@@ -413,27 +417,6 @@
         if (window.location.href.includes("/rankings/") ||
             window.location.href.includes("/multiplayer/rooms/") ||
             window.location.href.includes("/seasons/")) {
-            //header-nav-v4--list needs to flex start fill
-            //if game-mode is active, set width to 80%, else 100%
-            GM_addStyle(`
-                .header-nav-v4--list {
-                    flex-grow: 1;
-                    width: 88%;
-                }
-
-                .header-nav-v4__item {
-                    padding-top: 2px;
-                    padding-bottom: 2px;
-                }
-                    
-                .game-mode {
-                    position: relative;
-                    right: 0;
-                    left: 50;
-                    width: 12%;
-                    flex-grow: 1;
-                }
-            `);
             await handleLeaderboardPage();
         }
 
@@ -441,11 +424,9 @@
         await runUsernames();
         await runScoreRankCompletionPercentages();
         await runScoreRankChanges();
-
-
     }
 
-    function start(){
+    function start() {
         run();
         document.addEventListener("turbolinks:load", run)
     }
@@ -463,10 +444,12 @@
 
         const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
         if (active_custom_ranking) {
-            //wait 0.5s for the page to load
+            //set body style to "--base-hue-default: 115; --base-hue-override: 115"
+            document.body.style.setProperty("--base-hue-default", 115);
+            document.body.style.setProperty("--base-hue-override", 115);
 
             //set page title to "total ss (bullet) rankings | osu!"
-            document.title = `${active_custom_ranking.name} • rankings | osu!`;
+            document.title = `${active_custom_ranking.name} · rankings | osu!`;
 
             const container = document.getElementsByClassName("osu-layout__section osu-layout__section--full")[0];
             container.innerHTML = "";
@@ -747,6 +730,16 @@
 
             //another pagination at the bottom
             scores_container.appendChild(createPagination(page));
+
+            // find 'a' with data-menu-target = "nav2-menu-popup-rankings"
+            let nav2_menu_link_bar = document.querySelector('a[data-menu-target="nav2-menu-popup-rankings"]');
+            //get child span
+            let nav2_menu_link_bar_span = nav2_menu_link_bar.querySelector("span");
+
+            //add a span with class "nav2__menu-link-bar u-section--bg-normal"
+            let nav2_menu_link_bar_span_new = document.createElement("span");
+            nav2_menu_link_bar_span_new.classList.add("nav2__menu-link-bar", "u-section--bg-normal");
+            nav2_menu_link_bar_span.appendChild(nav2_menu_link_bar_span_new);
         }
 
         //empty the header nav
@@ -762,7 +755,12 @@
                 a.textContent = item.name;
                 a.setAttribute("data-content", item.attr);
 
-                if (url === item.link) {
+                let is_active = url === item.link;
+                if(!is_active){
+                    is_active = url.includes(`${item.link}/`) || url.includes(`${item.link}?`);
+                }
+
+                if (is_active) {
                     a.classList.add("header-nav-v4__link--active");
                 }
 
@@ -771,6 +769,40 @@
                 headerNav.appendChild(li);
             }
         });
+
+        //if we are on daily-challenge page
+        if (window.location.href.includes("/rankings/daily-challenge")) {
+            //wait 0.5s for the page to load
+            await new Promise(r => setTimeout(r, 1000));
+            //we need to patch out issue from subdivide nations extension
+            //get all elements with class "ranking-page-table__user-link" under "ranking-page-table"
+            const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
+
+            //loop through all userLinks
+            for (let i = 0; i < userLinks.length; i++) {
+                //check if we have 2 divs with style "display: inline-block"
+                //if we do, this row is affected by subdivide nations extension
+
+                //if we have 2 divs with style "display: inline-block"
+                if (userLinks[i].children[0].style.display === "inline-block" && userLinks[i].children[1].style.display === "inline-block") {
+                    //move the first span of the second div to the first div as 2nd child
+                    userLinks[i].children[0].appendChild(userLinks[i].children[1].children[0]);
+
+                    //move 2nd child of first div, to the back of the first div
+                    userLinks[i].children[0].appendChild(userLinks[i].children[0].children[1]);
+
+                    //remove the second div
+                    userLinks[i].removeChild(userLinks[i].children[1]);
+
+                    //move all children of the first div to the parent div and remove the first div
+                    while (userLinks[i].children[0].children.length > 0) {
+                        userLinks[i].appendChild(userLinks[i].children[0].children[0]);
+                    }
+
+                    userLinks[i].removeChild(userLinks[i].children[0]);
+                }
+            }
+        }
     }
 
     //finds all usernames on the page and adds clan tags to them
@@ -1367,7 +1399,6 @@
                 }
             }
 
-            console.log(user_data);
             return user_data;
         } catch (err) {
             console.error(err);
