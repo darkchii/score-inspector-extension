@@ -15,7 +15,7 @@ Works on most browsers. You may need to enable "Developer Mode" in extension set
 - [STD] Adds completion percentage to profile and score rank leaderboards (in place of Accuracy percentage)
 - [ALL] Adds Top 50s amount
 - [STD] Custom leaderboards
-- [ALL] Per-difficulty backgrounds on beatmap pages (ranked + loved only)
+- [ALL] Per-difficulty backgrounds on beatmap pages, ranked + loved only (using catboy.best api)
 
 *Score rank history started in August 2023 for standard, and in June 2024 for other modes.*
 
