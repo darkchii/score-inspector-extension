@@ -1046,6 +1046,11 @@
             return;
         }
 
+        //if contains ?filter=friends, do not run
+        if (_url.includes("?filter=friends")) {
+            return;
+        }
+
         const mode_id = MODE_SLUGS_ALT.indexOf(mode);
         if (mode_id === -1) {
             return;
@@ -1064,6 +1069,10 @@
         const RANK_INDEX = 0;
         const USER_INDEX = 1;
         const RANK_CHANGE_INDEX = 1; //this gets inserted at index 1
+        const SCORE_INDEX = 5;
+        const SCORE_CHANGE_INDEX = 8;
+
+        let rank_change_date = null;
 
         //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
         let ids = [];
@@ -1110,7 +1119,7 @@
             return td;
         }
 
-        const getRankChangeText = (change) => {
+        const getRankChangeText = (change, format = false) => {
             const td = document.createElement('td');
 
             //ranking-page-table__column ranking-page-table__column--rank-change-value ranking-page-table__column--rank-change-none
@@ -1125,7 +1134,12 @@
             }
 
             if (change !== 0) {
-                td.textContent = Math.abs(change);
+                if (format) {
+                    td.textContent = formatNumber(change);
+                    td.title = change.toLocaleString();
+                }else{
+                    td.textContent = Math.abs(change);
+                }
             }
 
             return td;
@@ -1138,24 +1152,57 @@
             const current_rank_str = cells[RANK_INDEX].textContent; //"#1", "#2", etc
             const current_rank = parseInt(current_rank_str.trim().slice(1)); //remove the "#" and parse to int
 
+            //get title
+            const current_score_str = cells[SCORE_INDEX].children[0].getAttribute('title');
+            const current_score = Number(current_score_str.replace(/,/g, ''));
+
             const rank_change_data = data.find(d => d.osu_id == user_id);
-            let change = 0;
+            let change_rank = 0;
+            let change_score = 0;
 
             if (rank_change_data) {
-                let old_rank = parseInt(rank_change_data.rank);
-                change = old_rank - current_rank;
+                let old_rank = parseInt(rank_change_data.old_rank);
+                let old_score = parseInt(rank_change_data.old_ranked_score);
+                change_rank = old_rank - current_rank;
+                change_score = current_score - old_score;
+
+                if(!rank_change_date){
+                    rank_change_date = rank_change_data.date;
+                }
             }
 
-            const rank_change_text = getRankChangeText(change);
+            const rank_change_text = getRankChangeText(change_rank);
             row.insertBefore(rank_change_text, cells[RANK_CHANGE_INDEX]);
 
-            const rank_change_icon = getRankChangeIcon(change);
+            const rank_change_icon = getRankChangeIcon(change_rank);
             row.insertBefore(rank_change_icon, cells[RANK_CHANGE_INDEX]);
+
+            //human readable score change
+            const score_change_text = getRankChangeText(change_score, true);
+            row.insertBefore(score_change_text, cells[SCORE_CHANGE_INDEX]);
+
+            const score_change_icon = getRankChangeIcon(change_score);
+            row.insertBefore(score_change_icon, cells[SCORE_CHANGE_INDEX]);
         }
 
         //insert empty header cells for rank change at RANK_CHANGE_INDEX
         headerRow.insertBefore(document.createElement('th'), headerCells[RANK_CHANGE_INDEX]);
         headerRow.insertBefore(document.createElement('th'), headerCells[RANK_CHANGE_INDEX]);
+
+        //insert empty header cells for score change at SCORE_CHANGE_INDEX
+        headerRow.insertBefore(document.createElement('th'), headerCells[SCORE_CHANGE_INDEX]);
+        headerRow.insertBefore(document.createElement('th'), headerCells[SCORE_CHANGE_INDEX]);
+
+        if(rank_change_date){
+            //get the 2nd pagination
+            const pagination = document.getElementsByClassName("pagination-v2")[1];
+    
+            //below this, add a text that tells us from what date the score difference is from
+            const dateText = document.createElement("div");
+            dateText.classList.add("ranking-page-table__date");
+            dateText.textContent = `Rank changes are from ${rank_change_date}`;
+            pagination.parentNode.insertBefore(dateText, pagination);
+        }
     }
 
     //replaces the accuracy column with a completion percentage column
@@ -2132,5 +2179,19 @@
         }
 
         return null;
+    }
+
+    function formatNumber(number){
+        //convert to K, M, B, etc
+        if (number < 1000) {
+            return number;
+        }
+        const SI_SYMBOL = ["", "k", "M", "B", "T"];
+        const tier = Math.log10(number) / 3 | 0;
+        if (tier == 0) return number;
+        const suffix = SI_SYMBOL[tier];
+        const scale = Math.pow(10, tier * 3);
+        const scaled = number / scale;
+        return scaled.toFixed(1) + suffix;
     }
 })();
