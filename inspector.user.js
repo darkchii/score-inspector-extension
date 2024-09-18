@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-09-17.51
+// @version      2024-09-18.52
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -68,6 +68,63 @@
     }
 
     const CUSTOM_RANKINGS_ATTRIBUTES = {
+        performance: {
+            name: "Performance",
+            val: (user) => {
+                return user.pp;
+            },
+            clan_val: (clan_stats) => {
+                return clan_stats.average_pp;
+            },
+            formatter: (value) => {
+                return `${value.toLocaleString()}pp`;
+            },
+            tooltip_formatter: (value) => {
+                return value.toLocaleString();
+            }
+        },
+        total_pp: {
+            name: "Total PP",
+            val: (user) => {
+                return user.total_pp;
+            },
+            formatter: (value) => {
+                return shortNum(value);
+            },
+            tooltip_formatter: (value) => {
+                return value.toLocaleString();
+            }
+        },
+        accuracy: {
+            name: "Accuracy",
+            val: (user) => {
+                return user.accuracy;
+            },
+            formatter: (value) => {
+                return `${value.toFixed(2)}%`;
+            },
+            tooltip_formatter: (value) => {
+                return `${value.toFixed(2)}%`;
+            }
+        },
+        badges: {
+            name: "Badges",
+            val: (user) => {
+                return user.badges;
+            }
+        },
+        medals: {
+            name: "Medals",
+            val: (user) => {
+                return user.medals;
+            }
+        },
+        members: {
+            name: "Members",
+            val: (user) => {
+                return user.members;
+            }
+        },
         total_score: {
             name: "Total Score",
             val: (user) => {
@@ -97,42 +154,63 @@
             val: (user) => {
                 return user.ss_count + user.ssh_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.total_ss_both;
+            }
         },
         s: {
             name: "S",
             val: (user) => {
                 return user.s_count + user.sh_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.total_s_both;
+            }
         },
         a: {
             name: "A",
             val: (user) => {
                 return user.a_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.total_a;
+            }
         },
         b: {
             name: "B",
             val: (user) => {
                 return user.b_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.total_b;
+            }
         },
         c: {
             name: "C",
             val: (user) => {
                 return user.c_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.total_c;
+            }
         },
         d: {
             name: "D",
             val: (user) => {
                 return user.d_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.total_d;
+            }
         },
         clears: {
             name: "Clears",
             val: (user) => {
                 return user.ss_count + user.ssh_count + user.s_count + user.sh_count + user.a_count;
             },
+            clan_val: (clan_stats) => {
+                return clan_stats.clears;
+            }
         },
         playtime: {
             name: "Playtime",
@@ -378,7 +456,292 @@
         }
     ]
 
-    const MAX_RANK_PAGE = 200;
+    const CLANS_RANKINGS = [
+        {
+            name: "performance",
+            name_display: "Performance",
+            local_path: "performance",
+            link: "/clans/performance",
+            api_path: "average_pp",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.performance, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        },
+        {
+            name: "total pp",
+            name_display: "Total PP",
+            local_path: "total_pp",
+            link: "/clans/total_pp",
+            api_path: "total_pp",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_pp, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        },
+        {
+            name: "accuracy",
+            name_display: "Accuracy",
+            local_path: "accuracy",
+            link: "/clans/accuracy",
+            api_path: "accuracy",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.accuracy, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: "ranked score",
+            name_display: "Ranked Score",
+            local_path: "ranked_score",
+            link: "/clans/ranked_score",
+            api_path: "ranked_score",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: "total score",
+            name_display: "Total Score",
+            local_path: "total_score",
+            link: "/clans/total_score",
+            api_path: "total_score",
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'clears',
+            name_display: 'Clears',
+            local_path: 'clears',
+            link: '/clans/clears',
+            api_path: 'clears',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.clears, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total ss',
+            name_display: 'SS',
+            local_path: 'ss',
+            link: '/clans/ss',
+            api_path: 'total_ss_both',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total s',
+            name_display: 'S',
+            local_path: 's',
+            link: '/clans/s',
+            api_path: 'total_s_both',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total a',
+            name_display: 'A',
+            local_path: 'a',
+            link: '/clans/a',
+            api_path: 'total_a',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total b',
+            name_display: 'B',
+            local_path: 'b',
+            link: '/clans/b',
+            api_path: 'total_b',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total c',
+            name_display: 'C',
+            local_path: 'c',
+            link: '/clans/c',
+            api_path: 'total_c',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total d',
+            name_display: 'D',
+            local_path: 'd',
+            link: '/clans/d',
+            api_path: 'total_d',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.b],
+                [CUSTOM_RANKINGS_ATTRIBUTES.c],
+                [CUSTOM_RANKINGS_ATTRIBUTES.d, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'playtime',
+            name_display: 'Playtime',
+            local_path: 'playtime',
+            link: '/clans/playtime',
+            api_path: 'playtime',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.playtime, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.playcount],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'playcount',
+            name_display: 'Playcount',
+            local_path: 'playcount',
+            link: '/clans/playcount',
+            api_path: 'playcount',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.playtime],
+                [CUSTOM_RANKINGS_ATTRIBUTES.playcount, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'replays watched',
+            name_display: 'Replays Watched',
+            local_path: 'replays_watched',
+            link: '/clans/replays_watched',
+            api_path: 'replays_watched',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.replays_watched, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.playcount],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'total hits',
+            name_display: 'Total Hits',
+            local_path: 'total_hits',
+            link: '/clans/total_hits',
+            api_path: 'total_hits',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_hits, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.playcount],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'badges',
+            name_display: 'Badges',
+            local_path: 'badges',
+            link: '/clans/badges',
+            api_path: 'badges',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.badges, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.medals],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'medals',
+            name_display: 'Medals',
+            local_path: 'medals',
+            link: '/clans/medals',
+            api_path: 'medals',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.badges],
+                [CUSTOM_RANKINGS_ATTRIBUTES.medals, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+                [CUSTOM_RANKINGS_ATTRIBUTES.members],
+            ]
+        }, {
+            name: 'members',
+            name_display: 'Members',
+            local_path: 'members',
+            link: '/clans/members',
+            api_path: 'members',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.members, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ]
+        }
+    ]
+
 
     let is_osuplus_active = false;
 
@@ -446,6 +809,8 @@
             await handleLeaderboardPage();
         }
 
+        await runClansPage();
+        await runHeader();
         await runUserPage();
         await runUsernames();
         await runScoreRankCompletionPercentages();
@@ -458,6 +823,277 @@
         document.addEventListener("turbolinks:load", run)
     }
     start();
+
+    async function runHeader() {
+        //if element with id "osu-scores-inspector-clans" exists, return
+        if (document.getElementById("osu-scores-inspector-clans")) {
+            return;
+        }
+        //find header (class "nav2__colgroup nav2__colgroup--menu js-nav-button--container")
+        const header = document.getElementsByClassName("nav2__colgroup nav2__colgroup--menu js-nav-button--container")[0];
+
+        if (header) {
+            //create element "div" with class "nav2__col nav2__col--menu" and text "osu! scores inspector"
+            const header_element = document.createElement("div");
+            header_element.classList.add("nav2__col", "nav2__col--menu");
+            //give it an identifier
+            header_element.id = "osu-scores-inspector-clans";
+
+            //create element "a" with class "nav2__menu-link-main" and text "clans"
+            const header_element_link = document.createElement("a");
+            header_element_link.classList.add("nav2__menu-link-main", "js-menu");
+            header_element_link.href = "/clans/performance";
+            header_element.appendChild(header_element_link);
+
+            //add span with class "u-relative"
+            const header_element_span = document.createElement("span");
+            header_element_span.classList.add("u-relative");
+            header_element_span.textContent = "clans";
+            //if we are on '/clans', add span with "nav2__menu-link-bar u-section--bg-normal"
+            if (window.location.href.includes("/clans")) {
+                const header_element_span_underline = document.createElement("span");
+                header_element_span_underline.classList.add("nav2__menu-link-bar", "u-section--bg-normal");
+                header_element_span.appendChild(header_element_span_underline);
+            }
+            header_element_link.appendChild(header_element_span);
+
+            //append header_element to header (2nd to last child)
+            header.insertBefore(header_element, header.children[header.children.length - 1]);
+        }
+    }
+
+    const CLANS_PER_PAGE = 50;
+    async function runClansPage() {
+        let url = window.location.href.split("?")[0];
+        url = url.replace("https://osu.ppy.sh", "");
+
+        //if we are on '/clans'
+        if (url.includes("/clans/")) {
+            //get current clan ranking
+            const active_clan_ranking = CLANS_RANKINGS.find(ranking => ranking.local_path === url.split("/")[2]);
+            if (!active_clan_ranking || !url.includes(active_clan_ranking.local_path)) {
+                return;
+            }
+
+            const page_data = await runCleanErrorPage(active_clan_ranking.name, "clans", {
+                title: "clans"
+            });
+
+            const container = page_data.container;
+            const header_nav = page_data.header_nav;
+
+            const clans_container = document.createElement("div");
+            clans_container.classList.add("osu-page", "osu-page--generic");
+            clans_container.id = "scores";
+            container.appendChild(clans_container);
+
+            let page = new URLSearchParams(window.location.search).get("page") ?? 1;
+            page = Number(page) || 1;
+
+            //first try to get data now
+            const fetch_url = `${SCORE_INSPECTOR_API}clans/list?page=${page}&sort=${active_clan_ranking.api_path}&limit=50`;
+            const response = await fetch(fetch_url, {
+                headers: {
+                    "Access-Control-Allow-Origin": "*",
+                }
+            });
+
+            let data = null;
+            try {
+                if (response.status !== 200) {
+                    throw new Error("An error occurred while fetching the data. Please try again later.");
+                }
+                data = await response.json();
+            } catch (e) {
+                clans_container.innerHTML = "An error occurred while fetching the data. Please try again later.";
+                return;
+            }
+
+            console.log(data);
+
+            createRankingNavigation({
+                nav: header_nav,
+                items: CLANS_RANKINGS.map(ranking => {
+                    return {
+                        name: ranking.name,
+                        attr: ranking.local_path,
+                        link: ranking.link
+                    }
+                }),
+                active: active_clan_ranking.local_path
+            });
+
+            const clan_pages = Math.ceil(data.query_clans / CLANS_PER_PAGE);
+
+            clans_container.appendChild(createPagination(page, active_clan_ranking.link, clan_pages));
+
+            const ranking_page = document.createElement("div");
+            ranking_page.classList.add("ranking-page");
+            clans_container.appendChild(ranking_page);
+
+            const ranking_table = document.createElement("table");
+            ranking_table.classList.add("ranking-page-table");
+            ranking_page.appendChild(ranking_table);
+
+            const ranking_thead = document.createElement("thead");
+            ranking_table.appendChild(ranking_thead);
+
+            ranking_thead.appendChild(createTableHeaderItem());
+            ranking_thead.appendChild(createTableHeaderItem());
+            ranking_thead.appendChild(createTableHeaderItem());
+            // ranking_thead.appendChild(createTableHeaderItem(active_clan_ranking.name_display, true));
+            active_clan_ranking.attributes.forEach(attribute => {
+                ranking_thead.appendChild(createTableHeaderItem(attribute[0].name, true));
+            });
+
+            const ranking_tbody = document.createElement("tbody");
+            ranking_table.appendChild(ranking_tbody);
+
+            const _addTableBodyRow = (clan, index) => {
+                const tr = document.createElement("tr");
+                tr.classList.add("ranking-page-table__row");
+
+                const td_rank = document.createElement("td");
+                td_rank.classList.add("ranking-page-table__column", "ranking-page-table__column--rank");
+                td_rank.textContent = `#${(page - 1) * CLANS_PER_PAGE + index + 1}`;
+                tr.appendChild(td_rank);
+
+                const td_clan_tag = document.createElement("td");
+                td_clan_tag.classList.add("ranking-page-table__column", "ranking-page-table__user");
+                const td_clan_tag_link = document.createElement("a");
+                td_clan_tag_link.href = `https://score.kirino.sh/clan/${clan.id}`;
+                td_clan_tag_link.target = "_blank";
+                td_clan_tag_link.textContent = `[${clan.tag}]`;
+                td_clan_tag_link.style.color = `#${clan.color}`;
+                //bold clan tag
+                td_clan_tag_link.style.fontWeight = "bold";
+                td_clan_tag.appendChild(td_clan_tag_link);
+                //align clan tag to the right
+                td_clan_tag.style.textAlign = "right";
+                //padding right
+                td_clan_tag.style.paddingRight = "10px";
+                tr.appendChild(td_clan_tag);
+
+                const td_clan = document.createElement("td");
+                td_clan.classList.add("ranking-page-table__column", "ranking-page-table__user");
+                const td_clan_link = document.createElement("a");
+                td_clan_tag_link.href = `https://score.kirino.sh/clan/${clan.id}`;
+                td_clan_link.target = "_blank";
+                td_clan_link.textContent = clan.name;
+                td_clan.appendChild(td_clan_link);
+                //align clan name to the left
+                td_clan.style.textAlign = "left";
+                tr.appendChild(td_clan);
+
+                for(const attribute of active_clan_ranking.attributes) {
+                    const formatter = attribute[0].formatter ?? ((val) => val.toLocaleString());
+                    const td = document.createElement("td");
+                    td.classList.add("ranking-page-table__column");
+                    if(!attribute[1]) {
+                        td.classList.add("ranking-page-table__column--dimmed");
+                    }
+                    td.textContent = formatter(attribute[0].clan_val ? attribute[0].clan_val(clan.clan_stats) : attribute[0].val(clan.clan_stats));
+                    if(attribute[0].tooltip_formatter) {
+                        td.setAttribute("data-html-title", attribute[0].tooltip_formatter(attribute[0].clan_val ? attribute[0].clan_val(clan.clan_stats) : attribute[0].val(clan.clan_stats)));
+                        td.setAttribute("title", "");
+                    }
+                    tr.appendChild(td);
+                }
+
+                ranking_tbody.appendChild(tr);
+
+
+                // const row = document.createElement("tr");
+                // ranking_tbody.appendChild(row);
+
+                // const rank = document.createElement("td");
+                // rank.textContent = index + 1;
+                // row.appendChild(rank);
+
+                // const clan_name = document.createElement("td");
+                // clan_name.textContent = clan.name;
+                // row.appendChild(clan_name);
+
+                // active_clan_ranking.attributes.forEach(attribute => {
+                //     const value = document.createElement("td");
+                //     value.textContent = attribute[0].clan_val ? attribute[0].clan_val(clan.clan_stats) : attribute[0].val(clan.clan_stats);
+                //     row.appendChild(value);
+                // });
+            }
+
+            data.clans.forEach((clan, index) => {
+                _addTableBodyRow(clan, index);
+            });
+
+            clans_container.appendChild(createPagination(page, active_clan_ranking.link, clan_pages));
+        }
+    }
+
+    async function runCleanErrorPage(title, subtitle, header_data = null) {
+        document.title = `${title} · ${subtitle} | osu!`;
+
+        const container = document.getElementsByClassName("osu-layout__section osu-layout__section--full")[0];
+        container.innerHTML = "";
+
+        let header_nav = null;
+
+        if (header_data) {
+            const rankings_container = document.createElement("div");
+            rankings_container.classList.add("header-v4", "header-v4--rankings");
+            container.appendChild(rankings_container);
+
+            const rankings_header = document.createElement("div");
+            rankings_header.classList.add("header-v4__container", "header-v4__container--main");
+            rankings_container.appendChild(rankings_header);
+
+            const rankings_header_bg_container = document.createElement("div");
+            rankings_header_bg_container.classList.add("header-v4__bg-container");
+            //bg color hsl(var(--hsl-d5))
+            rankings_header_bg_container.style.backgroundColor = "hsl(var(--hsl-d5))";
+            rankings_header.appendChild(rankings_header_bg_container);
+
+            const rankings_header_bg_container_bg = document.createElement("div");
+            rankings_header_bg_container_bg.classList.add("header-v4__bg");
+            rankings_header_bg_container.appendChild(rankings_header_bg_container_bg);
+
+            const rankings_header_content = document.createElement("div");
+            rankings_header_content.classList.add("header-v4__content");
+            rankings_header.appendChild(rankings_header_content);
+
+            const rankings_header_content_title = document.createElement("div");
+            rankings_header_content_title.classList.add("header-v4__row", "header-v4__row--title");
+            rankings_header_content.appendChild(rankings_header_content_title);
+
+            const rankings_header_content_title_icon = document.createElement("div");
+            rankings_header_content_title_icon.classList.add("header-v4__icon");
+            rankings_header_content_title.appendChild(rankings_header_content_title_icon);
+
+            const rankings_header_content_title_text = document.createElement("div");
+            rankings_header_content_title_text.classList.add("header-v4__title");
+            rankings_header_content_title_text.textContent = header_data.title ?? "placeholder";
+            rankings_header_content_title.appendChild(rankings_header_content_title_text);
+
+            const ranking_headers_container = document.createElement("div");
+            ranking_headers_container.classList.add("header-v4__container");
+            rankings_container.appendChild(ranking_headers_container);
+
+            const ranking_headers_content = document.createElement("div");
+            ranking_headers_content.classList.add("header-v4__content");
+            ranking_headers_container.appendChild(ranking_headers_content);
+
+            const ranking_headers_row = document.createElement("div");
+            ranking_headers_row.classList.add("header-v4__row", "header-v4__row--bar");
+            ranking_headers_content.appendChild(ranking_headers_row);
+
+            const ranking_headers_row_nav = document.createElement("ul");
+            ranking_headers_row_nav.classList.add("header-nav-v4", "header-nav-v4--list");
+            ranking_headers_row.appendChild(ranking_headers_row_nav);
+
+            header_nav = ranking_headers_row_nav;
+        }
+
+        return { container, header_nav };
+    }
 
     async function updateCheck() {
         //read the current version from the script
@@ -488,7 +1124,7 @@
             const current_version_int = parseInt(current_version_split[current_version_split.length - 1]);
             const live_version_int = parseInt(live_version_split[live_version_split.length - 1]);
 
-            if(isNaN(current_version_int) || isNaN(live_version_int)) {
+            if (isNaN(current_version_int) || isNaN(live_version_int)) {
                 console.error("Invalid version number");
                 return;
             }
@@ -584,6 +1220,137 @@
         runner();
     }
 
+    function createPagination(page, base_url, max_rank_page = 200) {
+        const nav = document.createElement("nav");
+        nav.classList.add("pagination-v2");
+
+        const nav_prev_col = document.createElement("div");
+        nav_prev_col.classList.add("pagination-v2__col");
+
+        let nav_prev_span = null;
+        if (page === 1) {
+            nav_prev_span = document.createElement("span");
+            nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
+        } else {
+            nav_prev_span = document.createElement("a");
+            nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
+            // nav_prev_span.href = `/rankings/osu/ss?page=${page - 1}`;
+            nav_prev_span.href = `${base_url}?page=${page - 1}`;
+        }
+        const nav_prev_span_icon = document.createElement("i");
+        nav_prev_span_icon.classList.add("fas", "fa-angle-left");
+        nav_prev_span.appendChild(nav_prev_span_icon);
+        nav_prev_span.appendChild(document.createTextNode(" "));
+        const nav_prev_span_text = document.createElement("span");
+        nav_prev_span_text.textContent = "PREV";
+        nav_prev_span.appendChild(nav_prev_span_text);
+        nav_prev_col.appendChild(nav_prev_span);
+        nav.appendChild(nav_prev_col);
+
+        const nav_next_col = document.createElement("div");
+        nav_next_col.classList.add("pagination-v2__col");
+
+        const BUTTONS_BEFORE_CURRENT_PAGE = 2;
+        const BUTTONS_AFTER_CURRENT_PAGE = 2;
+
+        //1 and 200 are always shown
+        const _createPageButton = (_page, active = false) => {
+            const li = document.createElement("li");
+            li.classList.add("pagination-v2__item");
+
+            let a = null;
+            if (_page === page) {
+                a = document.createElement("span");
+            } else {
+                a = document.createElement("a");
+            }
+            a.classList.add("pagination-v2__link");
+            // a.href = `/rankings/osu/ss?page=${_page}`;
+            a.href = `${base_url}?page=${_page}`;
+            if (active) {
+                a.classList.add("pagination-v2__link--active");
+            }
+            a.textContent = _page;
+
+            li.appendChild(a);
+
+            return li;
+        }
+
+        const pagination_items = document.createElement("div");
+        pagination_items.classList.add("pagination-v2__col", "pagination-v2__col--pages");
+        nav.appendChild(pagination_items);
+
+        //just loop between 1 and 200
+        for (let i = 1; i <= max_rank_page; i++) {
+            if (i === 1 || i === max_rank_page || (i >= page - BUTTONS_BEFORE_CURRENT_PAGE && i <= page + BUTTONS_AFTER_CURRENT_PAGE)) {
+                pagination_items.appendChild(_createPageButton(i, i === page));
+            } else if (i === page - BUTTONS_BEFORE_CURRENT_PAGE - 1 || i === page + BUTTONS_AFTER_CURRENT_PAGE + 1) {
+                const li = document.createElement("li");
+                li.classList.add("pagination-v2__item");
+                li.textContent = "...";
+                pagination_items.appendChild(li);
+            }
+        }
+
+        let nav_next_span = null;
+        if (page === max_rank_page) {
+            nav_next_span = document.createElement("span");
+            nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
+        } else {
+            nav_next_span = document.createElement("a");
+            nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
+            // nav_next_span.href = `/rankings/osu/ss?page=${page + 1}`;
+            nav_next_span.href = `${base_url}?page=${page + 1}`;;
+        }
+        const nav_next_span_icon = document.createElement("i");
+        const nav_next_span_text = document.createElement("span");
+        nav_next_span_text.textContent = "NEXT";
+        nav_next_span.appendChild(nav_next_span_text);
+        nav_next_span.appendChild(document.createTextNode(" "));
+        nav_next_span_icon.classList.add("fas", "fa-angle-right");
+        nav_next_span.appendChild(nav_next_span_icon);
+        nav_next_col.appendChild(nav_next_span);
+        nav.appendChild(nav_next_col);
+
+        return nav;
+    }
+
+    function createRankingNavigation(data){
+        data.nav.innerHTML = "";
+        data.items.forEach(item => {
+            if (!data.nav.querySelector(`[data-content="${item.attr}"]`)){
+                const li = document.createElement("li");
+                li.classList.add("header-nav-v4__item");
+                data.nav.appendChild(li);
+
+                const a = document.createElement("a");
+                a.classList.add("header-nav-v4__link");
+                a.href = item.link;
+                a.textContent = item.name;
+                a.setAttribute("data-content", item.attr);
+                li.appendChild(a);
+
+                if (item.attr === data.active) {
+                    a.classList.add("header-nav-v4__link--active");
+                }
+            }
+        });
+    }
+
+    function createTableHeaderItem(text = '', is_focus = false, is_grade = false) {
+        const th = document.createElement("th");
+        th.textContent = text;
+        th.classList.add("ranking-page-table__heading");
+        if (is_grade) {
+            th.classList.add("ranking-page-table__heading--grade");
+        }
+        if (is_focus) {
+            th.classList.add("ranking-page-table__heading--focused");
+        }
+        return th;
+    }
+
     async function handleLeaderboardPage() {
         //find ul with class "header-nav-v4 header-nav-v4--list"
         let headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
@@ -600,62 +1367,12 @@
             document.body.style.setProperty("--base-hue-default", 115);
             document.body.style.setProperty("--base-hue-override", 115);
 
-            //set page title to "total ss (bullet) rankings | osu!"
-            document.title = `${active_custom_ranking.name} · rankings | osu!`;
-
-            const container = document.getElementsByClassName("osu-layout__section osu-layout__section--full")[0];
-            container.innerHTML = "";
-
-            const rankings_container = document.createElement("div");
-            rankings_container.classList.add("header-v4", "header-v4--rankings");
-            container.appendChild(rankings_container);
-
-            const rankings_header = document.createElement("div");
-            rankings_header.classList.add("header-v4__container", "header-v4__container--main");
-            rankings_container.appendChild(rankings_header);
-
-            const rankings_header_bg_container = document.createElement("div");
-            rankings_header_bg_container.classList.add("header-v4__bg-container");
-            rankings_header.appendChild(rankings_header_bg_container);
-
-            const rankings_header_bg_container_bg = document.createElement("div");
-            rankings_header_bg_container_bg.classList.add("header-v4__bg");
-            rankings_header_bg_container.appendChild(rankings_header_bg_container_bg);
-
-            const rankings_header_content = document.createElement("div");
-            rankings_header_content.classList.add("header-v4__content");
-            rankings_header.appendChild(rankings_header_content);
-
-            const rankings_header_content_title = document.createElement("div");
-            rankings_header_content_title.classList.add("header-v4__row", "header-v4__row--title");
-            rankings_header_content.appendChild(rankings_header_content_title);
-
-            const rankings_header_content_title_icon = document.createElement("div");
-            rankings_header_content_title_icon.classList.add("header-v4__icon");
-            rankings_header_content_title.appendChild(rankings_header_content_title_icon);
-
-            const rankings_header_content_title_text = document.createElement("div");
-            rankings_header_content_title_text.classList.add("header-v4__title");
-            rankings_header_content_title_text.textContent = "rankings";
-            rankings_header_content_title.appendChild(rankings_header_content_title_text);
-
-            const ranking_headers_container = document.createElement("div");
-            ranking_headers_container.classList.add("header-v4__container");
-            rankings_container.appendChild(ranking_headers_container);
-
-            const ranking_headers_content = document.createElement("div");
-            ranking_headers_content.classList.add("header-v4__content");
-            ranking_headers_container.appendChild(ranking_headers_content);
-
-            const ranking_headers_row = document.createElement("div");
-            ranking_headers_row.classList.add("header-v4__row", "header-v4__row--bar");
-            ranking_headers_content.appendChild(ranking_headers_row);
-
-            const ranking_headers_row_nav = document.createElement("ul");
-            ranking_headers_row_nav.classList.add("header-nav-v4", "header-nav-v4--list");
-            ranking_headers_row.appendChild(ranking_headers_row_nav);
-
-            headerNav = ranking_headers_row_nav;
+            // const container = await runCleanErrorPage(active_custom_ranking.name, "rankings");
+            const page_data = await runCleanErrorPage(active_custom_ranking.name, "rankings", {
+                title: "rankings"
+            });
+            const container = page_data.container;
+            headerNav = page_data.header_nav;
 
             const scores_container = document.createElement("div");
             scores_container.classList.add("osu-page", "osu-page--generic");
@@ -685,105 +1402,8 @@
                 return;
             }
 
-            const createPagination = (page) => {
-                const nav = document.createElement("nav");
-                nav.classList.add("pagination-v2");
+            scores_container.appendChild(createPagination(page, `/rankings/osu/${active_custom_ranking.api_path}`));
 
-                const nav_prev_col = document.createElement("div");
-                nav_prev_col.classList.add("pagination-v2__col");
-
-                let nav_prev_span = null;
-                if (page === 1) {
-                    nav_prev_span = document.createElement("span");
-                    nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
-                } else {
-                    nav_prev_span = document.createElement("a");
-                    nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
-                    // nav_prev_span.href = `/rankings/osu/ss?page=${page - 1}`;
-                    nav_prev_span.href = `/rankings/osu/${active_custom_ranking.api_path}?page=${page - 1}`;
-                }
-                const nav_prev_span_icon = document.createElement("i");
-                nav_prev_span_icon.classList.add("fas", "fa-angle-left");
-                nav_prev_span.appendChild(nav_prev_span_icon);
-                nav_prev_span.appendChild(document.createTextNode(" "));
-                const nav_prev_span_text = document.createElement("span");
-                nav_prev_span_text.textContent = "PREV";
-                nav_prev_span.appendChild(nav_prev_span_text);
-                nav_prev_col.appendChild(nav_prev_span);
-                nav.appendChild(nav_prev_col);
-
-                const nav_next_col = document.createElement("div");
-                nav_next_col.classList.add("pagination-v2__col");
-
-                const BUTTONS_BEFORE_CURRENT_PAGE = 2;
-                const BUTTONS_AFTER_CURRENT_PAGE = 2;
-
-                //1 and 200 are always shown
-                const _createPageButton = (_page, active = false) => {
-                    const li = document.createElement("li");
-                    li.classList.add("pagination-v2__item");
-
-                    let a = null;
-                    if (_page === page) {
-                        a = document.createElement("span");
-                    } else {
-                        a = document.createElement("a");
-                    }
-                    a.classList.add("pagination-v2__link");
-                    // a.href = `/rankings/osu/ss?page=${_page}`;
-                    a.href = `/rankings/osu/${active_custom_ranking.api_path}?page=${_page}`;
-                    if (active) {
-                        a.classList.add("pagination-v2__link--active");
-                    }
-                    a.textContent = _page;
-
-                    li.appendChild(a);
-
-                    return li;
-                }
-
-                const pagination_items = document.createElement("div");
-                pagination_items.classList.add("pagination-v2__col", "pagination-v2__col--pages");
-                nav.appendChild(pagination_items);
-
-                //just loop between 1 and 200
-                for (let i = 1; i <= MAX_RANK_PAGE; i++) {
-                    if (i === 1 || i === MAX_RANK_PAGE || (i >= page - BUTTONS_BEFORE_CURRENT_PAGE && i <= page + BUTTONS_AFTER_CURRENT_PAGE)) {
-                        pagination_items.appendChild(_createPageButton(i, i === page));
-                    } else if (i === page - BUTTONS_BEFORE_CURRENT_PAGE - 1 || i === page + BUTTONS_AFTER_CURRENT_PAGE + 1) {
-                        const li = document.createElement("li");
-                        li.classList.add("pagination-v2__item");
-                        li.textContent = "...";
-                        pagination_items.appendChild(li);
-                    }
-                }
-
-                let nav_next_span = null;
-                if (page === MAX_RANK_PAGE) {
-                    nav_next_span = document.createElement("span");
-                    nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
-                } else {
-                    nav_next_span = document.createElement("a");
-                    nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
-                    // nav_next_span.href = `/rankings/osu/ss?page=${page + 1}`;
-                    nav_next_span.href = `/rankings/osu/${active_custom_ranking.api_path}?page=${page + 1}`;;
-                }
-                const nav_next_span_icon = document.createElement("i");
-                const nav_next_span_text = document.createElement("span");
-                nav_next_span_text.textContent = "NEXT";
-                nav_next_span.appendChild(nav_next_span_text);
-                nav_next_span.appendChild(document.createTextNode(" "));
-                nav_next_span_icon.classList.add("fas", "fa-angle-right");
-                nav_next_span.appendChild(nav_next_span_icon);
-                nav_next_col.appendChild(nav_next_span);
-                nav.appendChild(nav_next_col);
-
-                return nav;
-            }
-
-            scores_container.appendChild(createPagination(page));
-
-            //leaderboard, tbd
             const ranking_page = document.createElement("div");
             ranking_page.classList.add("ranking-page");
             scores_container.appendChild(ranking_page);
@@ -795,30 +1415,11 @@
             const ranking_thead = document.createElement("thead");
             ranking_table.appendChild(ranking_thead);
 
-            const _addTableHeaderItem = (text = '', is_focus = false, is_grade = false) => {
-                const th = document.createElement("th");
-                th.textContent = text;
-                th.classList.add("ranking-page-table__heading");
-                if (is_grade) {
-                    th.classList.add("ranking-page-table__heading--grade");
-                }
-                if (is_focus) {
-                    th.classList.add("ranking-page-table__heading--focused");
-                }
-                return th;
-            }
-
-            ranking_thead.appendChild(_addTableHeaderItem());
-            ranking_thead.appendChild(_addTableHeaderItem());
-            // ranking_thead.appendChild(_addTableHeaderItem('Total Score'));
-            // ranking_thead.appendChild(_addTableHeaderItem('Ranked Score'));
-            // ranking_thead.appendChild(_addTableHeaderItem('SS', true, true));
-            // ranking_thead.appendChild(_addTableHeaderItem('S', false, true));
-            // ranking_thead.appendChild(_addTableHeaderItem('A', false, true));
-            // ranking_thead.appendChild(_addTableHeaderItem('Clears', false));
+            ranking_thead.appendChild(createTableHeaderItem());
+            ranking_thead.appendChild(createTableHeaderItem());
 
             for (let attr of active_custom_ranking.attributes) {
-                ranking_thead.appendChild(_addTableHeaderItem(attr[0].name, attr[1] ?? false));
+                ranking_thead.appendChild(createTableHeaderItem(attr[0].name, attr[1] ?? false));
             }
 
             const ranking_tbody = document.createElement("tbody");
@@ -881,7 +1482,7 @@
             });
 
             //another pagination at the bottom
-            scores_container.appendChild(createPagination(page));
+            scores_container.appendChild(createPagination(page, `/rankings/osu/${active_custom_ranking.api_path}`));
 
             // find 'a' with data-menu-target = "nav2-menu-popup-rankings"
             let nav2_menu_link_bar = document.querySelector('a[data-menu-target="nav2-menu-popup-rankings"]');
@@ -895,31 +1496,10 @@
         }
 
         //empty the header nav
-        headerNav.innerHTML = "";
-        lb_page_nav_items.forEach(item => {
-            if (!headerNav.querySelector(`[data-content="${item.attr}"]`)) {
-                const li = document.createElement("li");
-                li.classList.add("header-nav-v4__item");
-
-                const a = document.createElement("a");
-                a.classList.add("header-nav-v4__link");
-                a.href = item.link;
-                a.textContent = item.name;
-                a.setAttribute("data-content", item.attr);
-
-                let is_active = url === item.link;
-                if (!is_active) {
-                    is_active = url.includes(`${item.link}/`) || url.includes(`${item.link}?`);
-                }
-
-                if (is_active) {
-                    a.classList.add("header-nav-v4__link--active");
-                }
-
-                li.appendChild(a);
-
-                headerNav.appendChild(li);
-            }
+        createRankingNavigation({
+            nav: headerNav,
+            items: lb_page_nav_items,
+            active: active_custom_ranking ? active_custom_ranking.api_path : null
         });
 
         //if we are on daily-challenge page
