@@ -909,7 +909,34 @@
                 return;
             }
 
-            console.log(data);
+            //add a button to go to the clans website
+            const button_parent = document.createElement("div");
+            //align content to the right
+            button_parent.style.textAlign = "right";
+
+            
+            const clans_website_button = document.createElement("a");
+            clans_website_button.classList.add("btn-osu-big");
+            clans_website_button.href = "https://score.kirino.sh/clan";
+            clans_website_button.target = "_blank";
+
+            const button_content = document.createElement("div");
+            button_content.classList.add("btn-osu-big__content");
+            clans_website_button.appendChild(button_content);
+
+            const button_text = document.createElement("div");
+            button_text.classList.add("btn-osu-big__left");
+            button_text.textContent = "More on scores inspector";
+            button_content.appendChild(button_text);
+
+            const button_icon = document.createElement("div");
+            button_icon.classList.add("btn-osu-big__right");
+            button_icon.innerHTML = `<i class="fas fa-external-link-alt"></i>`;
+            button_content.appendChild(button_icon);
+            //align button to the right
+            button_parent.appendChild(clans_website_button);
+
+            clans_container.appendChild(button_parent);
 
             createRankingNavigation({
                 nav: header_nav,
@@ -977,7 +1004,7 @@
                 const td_clan = document.createElement("td");
                 td_clan.classList.add("ranking-page-table__column", "ranking-page-table__user");
                 const td_clan_link = document.createElement("a");
-                td_clan_tag_link.href = `https://score.kirino.sh/clan/${clan.id}`;
+                td_clan_link.href = `https://score.kirino.sh/clan/${clan.id}`;
                 td_clan_link.target = "_blank";
                 td_clan_link.textContent = clan.name;
                 td_clan.appendChild(td_clan_link);
@@ -1001,24 +1028,6 @@
                 }
 
                 ranking_tbody.appendChild(tr);
-
-
-                // const row = document.createElement("tr");
-                // ranking_tbody.appendChild(row);
-
-                // const rank = document.createElement("td");
-                // rank.textContent = index + 1;
-                // row.appendChild(rank);
-
-                // const clan_name = document.createElement("td");
-                // clan_name.textContent = clan.name;
-                // row.appendChild(clan_name);
-
-                // active_clan_ranking.attributes.forEach(attribute => {
-                //     const value = document.createElement("td");
-                //     value.textContent = attribute[0].clan_val ? attribute[0].clan_val(clan.clan_stats) : attribute[0].val(clan.clan_stats);
-                //     row.appendChild(value);
-                // });
             }
 
             data.clans.forEach((clan, index) => {
