@@ -2641,7 +2641,7 @@
             });
         }
 
-        const layout = document.getElementsByClassName("js-react--profile-page osu-layout osu-layout--full")[0];
+        const layout = document.getElementsByClassName("js-react--profile-page u-contents")[0];
         const data = layout.getAttribute("data-initial-data");
         const parsedData = JSON.parse(data);
         graphHue = parsedData.user.profile_hue;
