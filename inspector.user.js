@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-10-19.53
+// @version      2024-11-16.54
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -800,9 +800,6 @@
                 box-sizing: border-box;
             }
         `);
-        try {
-            updateCheck(); //dont await, we dont rely on anything from this
-        } catch (e) { console.error(e); }
 
         //check for id "osuplusSettingsBtn"
         if (document.getElementById("osuplusSettingsBtn")) {
@@ -840,7 +837,7 @@
 
     function start() {
         run();
-        document.addEventListener("turbolinks:load", run)
+        document.addEventListener("turbo:load", run)
     }
     start();
 
@@ -1122,92 +1119,6 @@
         }
 
         return { container, header_nav };
-    }
-
-    async function updateCheck() {
-        //read the current version from the script
-        const current_version = GM_info.script.version;
-        const source_code_url = GM_info.script.downloadURL;
-        console.log("Current version: ", current_version);
-
-        //check for missmatch
-        //get raw source code from github
-        //base64 url
-        const url_base64 = btoa(source_code_url);
-        const response = await window.fetch(`${SCORE_INSPECTOR_API}proxy/${url_base64}`, {
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-            }
-        });
-        const source_code = await response.text();
-
-        //find the version in the source code
-        if (source_code && source_code.length > 0) {
-            const live_version = source_code.match(/@version\s+(\d{4}-\d{2}-\d{2}\.\d+)/);
-
-            //get values after the dot
-            const current_version_split = current_version.split(".");
-            const live_version_split = live_version[1].split(".");
-
-            //compare versions
-            const current_version_int = parseInt(current_version_split[current_version_split.length - 1]);
-            const live_version_int = parseInt(live_version_split[live_version_split.length - 1]);
-
-            if (isNaN(current_version_int) || isNaN(live_version_int)) {
-                console.error("Invalid version number");
-                return;
-            }
-
-            if (live_version_int !== current_version_int) {
-                //delete the notification if it exists
-                const existing_notification = document.getElementsByClassName("toast")[0];
-                if (existing_notification) {
-                    existing_notification.remove();
-                }
-
-                const notification = document.createElement("div");
-                notification.classList.add("toast");
-
-                const notification_title = document.createElement("div");
-                notification_title.textContent = "osu! scores inspector";
-                notification_title.classList.add("header-v4__title");
-                notification.appendChild(notification_title);
-
-                const notification_text = document.createElement("div");
-                notification_text.textContent = "New version available!";
-                notification.appendChild(notification_text);
-
-                const notification_version_change = document.createElement("div");
-                notification_version_change.textContent = `${current_version} > ${live_version[1]}`;
-                notification.appendChild(notification_version_change);
-
-                if (live_version_int < current_version_int) {
-                    //most likely development version
-                    const notification_dev_warn = document.createElement("div");
-                    notification_dev_warn.innerHTML = "Current is newer than remote.<br/>This is most likely a development version.";
-                    notification_dev_warn.style.color = "red";
-                    notification.appendChild(notification_dev_warn);
-                }
-
-                const notification_button = document.createElement("a");
-                notification_button.classList.add("btn-osu-big");
-                notification_button.textContent = "Update";
-                notification_button.href = source_code_url;
-                notification_button.target = "_blank";
-                notification_button.rel = "noopener noreferrer";
-                notification_button.style.marginTop = "1em";
-                notification.appendChild(notification_button);
-
-                document.body.appendChild(notification);
-
-                notification.classList.add("show");
-                //remove the notification after 10 seconds
-                setTimeout(() => {
-                    // notification.remove();
-                    notification.classList.remove("show");
-                }, 10000);
-            }
-        }
     }
 
     async function runBeatmapPage() {
