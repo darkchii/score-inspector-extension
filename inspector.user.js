@@ -2018,6 +2018,16 @@
 
         const data = await getUserData(user_id, username, mode);
 
+        const user_exists = data.user != null &&
+            (typeof data.coe !== "undefined" || typeof data.coe.error !== "string")
+            
+        //if the user does not exist, give informational alert.
+        if (!user_exists) {
+            popup("No osu!alt statistics available for this user.");
+            //skip other checks as redundant
+            return;
+        }
+
         if (data.coe && !data.coe.error) {
             setOrCreateCoeBannerElement(data.coe);
         }
