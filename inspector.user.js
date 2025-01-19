@@ -59,6 +59,7 @@
         'BYOC_MIDWEEK': 'BYOC (midweek)',
         'CAVE_MAIN': 'Cave',
         'CAVE_GUEST': 'Cave Guest',
+        'BYOC_PREM_ALL_DAYS': 'BYOC+ (all days)',
     }
 
     // let CURRENT_GRAPH = 'Performance';
