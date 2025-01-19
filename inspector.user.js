@@ -2044,7 +2044,10 @@
             
         //if the user does not exist, give informational alert.
         if (!user_exists) {
-            popup("No osu!alt statistics available for this user.");
+            if(mode === "osu") {
+                //we only show the popup for osu! mode, other modes are not supported period.
+                popup("No osu!alt statistics available for this user.");
+            }
             //skip other checks as redundant
             return;
         }
