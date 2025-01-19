@@ -241,6 +241,12 @@
             val: (user) => {
                 return user.total_hits;
             },
+        }, 
+        xp: {
+            name: "XP",
+            val: (user) => {
+                return user.xp;
+            },
         }
     }
 
@@ -730,6 +736,21 @@
                 [CUSTOM_RANKINGS_ATTRIBUTES.members],
             ]
         }, {
+            name: 'xp',
+            name_display: 'XP',
+            local_path: 'xp',
+            link: '/clans/xp',
+            api_path: 'xp',
+            attributes: [
+                [CUSTOM_RANKINGS_ATTRIBUTES.xp, true],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
+                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
+                [CUSTOM_RANKINGS_ATTRIBUTES.s],
+                [CUSTOM_RANKINGS_ATTRIBUTES.a],
+            ]
+        }, 
+        {
             name: 'members',
             name_display: 'Members',
             local_path: 'members',
