@@ -1619,6 +1619,8 @@
         usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
         //filter out with parent class "chat-conversation__new-chat-avatar"
         usercards = usercards.filter(card => !card.parentElement.classList.contains("chat-conversation__new-chat-avatar"));
+        //filter out with parent class "beatmap-discussion-user-card__avatar"
+        usercards = usercards.filter(card => !card.parentElement.classList.contains("beatmap-discussion-user-card__avatar"));
 
         if (window.location.href.includes("/rankings/")) {
             //check if "ranking-page-table__user-link" have a div as first child
@@ -1643,10 +1645,9 @@
                             div.appendChild(userLink.children[0]);
                             //move div to index 1
                             userLink.insertBefore(div, userLink.children[0]);
-
                         }
 
-                        if (userLink.children[0].tagName === "DIV" && userLink.children[0].children.length === 1) {
+                        if ((userLink.children[0].tagName === "DIV" && userLink.children[0].children.length === 1)) {
                             const cloned = userLink.children[0].children[0].cloneNode(true);
                             userLink.children[0].appendChild(cloned);
 
@@ -1730,8 +1731,9 @@
         const clanTag = generateTagSpan(clan);
 
         //if usercard has class "beatmap-scoreboard-table__cell-content" along with it, add whitespace-width padding
-        if (card.classList.contains("beatmap-scoreboard-table__cell-content")) {
-            clanTag.style.paddingRight = "5px";
+        if (card.classList.contains("beatmap-scoreboard-table__cell-content") ||
+            card.classList.contains("beatmap-discussion-user-card__user-link")) {
+            clanTag.style.paddingRight = "4px";
         }
 
         //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
