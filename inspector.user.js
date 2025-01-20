@@ -242,7 +242,7 @@
             val: (user) => {
                 return user.total_hits;
             },
-        }, 
+        },
         xp: {
             name: "XP",
             val: (user) => {
@@ -750,7 +750,7 @@
                 [CUSTOM_RANKINGS_ATTRIBUTES.s],
                 [CUSTOM_RANKINGS_ATTRIBUTES.a],
             ]
-        }, 
+        },
         {
             name: 'members',
             name_display: 'Members',
@@ -1182,7 +1182,7 @@
                 console.log(beatmap);
                 //get beatmap-basic-stats div
                 const beatmap_basic_stats = document.getElementsByClassName("beatmap-basic-stats")[0];
-                
+
                 if (beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--spinner-count`)) {
                     beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--spinner-count`).remove();
                 }
@@ -2044,10 +2044,16 @@
 
         const user_exists = data.user != null &&
             (typeof data.coe !== "undefined" || typeof data.coe.error !== "string")
-            
+
+        if (data.clan && !data.clan?.pending) {
+            //clan object can exist even if osualt data is not available
+            setOrCreateUserClanTagElement(data.clan.clan);
+            setOrCreateUserClanBannerElement(data.clan);
+        }
+
         //if the user does not exist, give informational alert.
         if (!user_exists) {
-            if(mode === "osu") {
+            if (mode === "osu") {
                 //we only show the popup for osu! mode, other modes are not supported period.
                 popup("No osu!alt statistics available for this user.");
             }
@@ -2059,10 +2065,6 @@
             setOrCreateCoeBannerElement(data.coe);
         }
 
-        if (data.clan && !data.clan?.pending) {
-            setOrCreateUserClanTagElement(data.clan.clan);
-            setOrCreateUserClanBannerElement(data.clan);
-        }
 
         if (data.completion) {
             setCompletionistBadges(data.completion);
