@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2024-12-22.55
+// @version      2025-02-20.58
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -75,9 +75,6 @@
             name: "Performance",
             val: (user) => {
                 return user.pp;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.average_pp;
             },
             formatter: (value) => {
                 return `${value.toLocaleString()}pp`;
@@ -156,63 +153,42 @@
             name: "SS",
             val: (user) => {
                 return user.ss_count + user.ssh_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.total_ss_both;
             }
         },
         s: {
             name: "S",
             val: (user) => {
                 return user.s_count + user.sh_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.total_s_both;
             }
         },
         a: {
             name: "A",
             val: (user) => {
                 return user.a_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.total_a;
             }
         },
         b: {
             name: "B",
             val: (user) => {
                 return user.b_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.total_b;
             }
         },
         c: {
             name: "C",
             val: (user) => {
                 return user.c_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.total_c;
             }
         },
         d: {
             name: "D",
             val: (user) => {
                 return user.d_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.total_d;
             }
         },
         clears: {
             name: "Clears",
             val: (user) => {
                 return user.ss_count + user.ssh_count + user.s_count + user.sh_count + user.a_count;
-            },
-            clan_val: (clan_stats) => {
-                return clan_stats.clears;
             }
         },
         playtime: {
@@ -465,308 +441,6 @@
         }
     ]
 
-    const CLANS_RANKINGS = [
-        {
-            name: "performance",
-            name_display: "Performance",
-            local_path: "performance",
-            link: "/clans/performance",
-            api_path: "average_pp",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.performance, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        },
-        {
-            name: "total pp",
-            name_display: "Total PP",
-            local_path: "total_pp",
-            link: "/clans/total_pp",
-            api_path: "total_pp",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_pp, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        },
-        {
-            name: "accuracy",
-            name_display: "Accuracy",
-            local_path: "accuracy",
-            link: "/clans/accuracy",
-            api_path: "accuracy",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.accuracy, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: "ranked score",
-            name_display: "Ranked Score",
-            local_path: "ranked_score",
-            link: "/clans/ranked_score",
-            api_path: "ranked_score",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: "total score",
-            name_display: "Total Score",
-            local_path: "total_score",
-            link: "/clans/total_score",
-            api_path: "total_score",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'clears',
-            name_display: 'Clears',
-            local_path: 'clears',
-            link: '/clans/clears',
-            api_path: 'clears',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.clears, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total ss',
-            name_display: 'SS',
-            local_path: 'ss',
-            link: '/clans/ss',
-            api_path: 'total_ss_both',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total s',
-            name_display: 'S',
-            local_path: 's',
-            link: '/clans/s',
-            api_path: 'total_s_both',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total a',
-            name_display: 'A',
-            local_path: 'a',
-            link: '/clans/a',
-            api_path: 'total_a',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total b',
-            name_display: 'B',
-            local_path: 'b',
-            link: '/clans/b',
-            api_path: 'total_b',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total c',
-            name_display: 'C',
-            local_path: 'c',
-            link: '/clans/c',
-            api_path: 'total_c',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total d',
-            name_display: 'D',
-            local_path: 'd',
-            link: '/clans/d',
-            api_path: 'total_d',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'playtime',
-            name_display: 'Playtime',
-            local_path: 'playtime',
-            link: '/clans/playtime',
-            api_path: 'playtime',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.playtime, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.playcount],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'playcount',
-            name_display: 'Playcount',
-            local_path: 'playcount',
-            link: '/clans/playcount',
-            api_path: 'playcount',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.playtime],
-                [CUSTOM_RANKINGS_ATTRIBUTES.playcount, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'replays watched',
-            name_display: 'Replays Watched',
-            local_path: 'replays_watched',
-            link: '/clans/replays_watched',
-            api_path: 'replays_watched',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.replays_watched, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.playcount],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'total hits',
-            name_display: 'Total Hits',
-            local_path: 'total_hits',
-            link: '/clans/total_hits',
-            api_path: 'total_hits',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_hits, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.playcount],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'badges',
-            name_display: 'Badges',
-            local_path: 'badges',
-            link: '/clans/badges',
-            api_path: 'badges',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.badges, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.medals],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'medals',
-            name_display: 'Medals',
-            local_path: 'medals',
-            link: '/clans/medals',
-            api_path: 'medals',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.badges],
-                [CUSTOM_RANKINGS_ATTRIBUTES.medals, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.members],
-            ]
-        }, {
-            name: 'xp',
-            name_display: 'XP',
-            local_path: 'xp',
-            link: '/clans/xp',
-            api_path: 'xp',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.xp, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ]
-        },
-        {
-            name: 'members',
-            name_display: 'Members',
-            local_path: 'members',
-            link: '/clans/members',
-            api_path: 'members',
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.members, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ]
-        }
-    ]
-
-
     let is_osuplus_active = false;
 
     const shortNum = (number) => {
@@ -848,10 +522,7 @@
             await handleLeaderboardPage();
         }
 
-        await runClansPage();
-        await runHeader();
         await runUserPage();
-        await runUsernames();
         await runScoreRankCompletionPercentages();
         await runScoreRankChanges();
         await runBeatmapPage();
@@ -862,220 +533,6 @@
         document.addEventListener("turbo:load", run)
     }
     start();
-
-    async function runHeader() {
-        //if element with id "osu-scores-inspector-clans" exists, return
-        if (document.getElementById("osu-scores-inspector-clans")) {
-            return;
-        }
-        //find header (class "nav2__colgroup nav2__colgroup--menu js-nav-button--container")
-        const header = document.getElementsByClassName("nav2__colgroup nav2__colgroup--menu js-nav-button--container")[0];
-
-        if (header) {
-            //create element "div" with class "nav2__col nav2__col--menu" and text "osu! scores inspector"
-            const header_element = document.createElement("div");
-            header_element.classList.add("nav2__col", "nav2__col--menu");
-            //give it an identifier
-            header_element.id = "osu-scores-inspector-clans";
-
-            //create element "a" with class "nav2__menu-link-main" and text "clans"
-            const header_element_link = document.createElement("a");
-            header_element_link.classList.add("nav2__menu-link-main", "js-menu");
-            header_element_link.href = "/clans/performance";
-            header_element.appendChild(header_element_link);
-
-            //add span with class "u-relative"
-            const header_element_span = document.createElement("span");
-            header_element_span.classList.add("u-relative");
-            header_element_span.textContent = "clans";
-            //if we are on '/clans', add span with "nav2__menu-link-bar u-section--bg-normal"
-            if (window.location.href.includes("/clans")) {
-                const header_element_span_underline = document.createElement("span");
-                header_element_span_underline.classList.add("nav2__menu-link-bar", "u-section--bg-normal");
-                header_element_span.appendChild(header_element_span_underline);
-            }
-            header_element_link.appendChild(header_element_span);
-
-            //append header_element to header (2nd to last child)
-            header.insertBefore(header_element, header.children[header.children.length - 1]);
-        }
-    }
-
-    const CLANS_PER_PAGE = 50;
-    async function runClansPage() {
-        let url = window.location.href.split("?")[0];
-        url = url.replace("https://osu.ppy.sh", "");
-
-        //if we are on '/clans'
-        if (url.includes("/clans/")) {
-            //get current clan ranking
-            const active_clan_ranking = CLANS_RANKINGS.find(ranking => ranking.local_path === url.split("/")[2]);
-            if (!active_clan_ranking || !url.includes(active_clan_ranking.local_path)) {
-                return;
-            }
-
-            const page_data = await runCleanErrorPage(active_clan_ranking.name, "clans", {
-                title: "clans"
-            });
-
-            const container = page_data.container;
-            const header_nav = page_data.header_nav;
-
-            const clans_container = document.createElement("div");
-            clans_container.classList.add("osu-page", "osu-page--generic");
-            clans_container.id = "scores";
-            container.appendChild(clans_container);
-
-            let page = new URLSearchParams(window.location.search).get("page") ?? 1;
-            page = Number(page) || 1;
-
-            //first try to get data now
-            const fetch_url = `${SCORE_INSPECTOR_API}clans/list?page=${page}&sort=${active_clan_ranking.api_path}&limit=50`;
-            const response = await fetch(fetch_url, {
-                headers: {
-                    "Access-Control-Allow-Origin": "*",
-                }
-            });
-
-            let data = null;
-            try {
-                if (response.status !== 200) {
-                    throw new Error("An error occurred while fetching the data. Please try again later.");
-                }
-                data = await response.json();
-            } catch (e) {
-                clans_container.innerHTML = "An error occurred while fetching the data. Please try again later.";
-                return;
-            }
-
-            //add a button to go to the clans website
-            const button_parent = document.createElement("div");
-            //align content to the right
-            button_parent.style.textAlign = "right";
-
-
-            const clans_website_button = document.createElement("a");
-            clans_website_button.classList.add("btn-osu-big");
-            clans_website_button.href = "https://score.kirino.sh/clan";
-            clans_website_button.target = "_blank";
-
-            const button_content = document.createElement("div");
-            button_content.classList.add("btn-osu-big__content");
-            clans_website_button.appendChild(button_content);
-
-            const button_text = document.createElement("div");
-            button_text.classList.add("btn-osu-big__left");
-            button_text.textContent = "More on scores inspector";
-            button_content.appendChild(button_text);
-
-            const button_icon = document.createElement("div");
-            button_icon.classList.add("btn-osu-big__right");
-            button_icon.innerHTML = `<i class="fas fa-external-link-alt"></i>`;
-            button_content.appendChild(button_icon);
-            //align button to the right
-            button_parent.appendChild(clans_website_button);
-
-            clans_container.appendChild(button_parent);
-
-            createRankingNavigation({
-                nav: header_nav,
-                items: CLANS_RANKINGS.map(ranking => {
-                    return {
-                        name: ranking.name,
-                        attr: ranking.local_path,
-                        link: ranking.link
-                    }
-                }),
-                active: active_clan_ranking.local_path
-            });
-
-            const clan_pages = Math.ceil(data.query_clans / CLANS_PER_PAGE);
-
-            clans_container.appendChild(createPagination(page, active_clan_ranking.link, clan_pages));
-
-            const ranking_page = document.createElement("div");
-            ranking_page.classList.add("ranking-page");
-            clans_container.appendChild(ranking_page);
-
-            const ranking_table = document.createElement("table");
-            ranking_table.classList.add("ranking-page-table");
-            ranking_page.appendChild(ranking_table);
-
-            const ranking_thead = document.createElement("thead");
-            ranking_table.appendChild(ranking_thead);
-
-            ranking_thead.appendChild(createTableHeaderItem());
-            ranking_thead.appendChild(createTableHeaderItem());
-            ranking_thead.appendChild(createTableHeaderItem());
-            // ranking_thead.appendChild(createTableHeaderItem(active_clan_ranking.name_display, true));
-            active_clan_ranking.attributes.forEach(attribute => {
-                ranking_thead.appendChild(createTableHeaderItem(attribute[0].name, true));
-            });
-
-            const ranking_tbody = document.createElement("tbody");
-            ranking_table.appendChild(ranking_tbody);
-
-            const _addTableBodyRow = (clan, index) => {
-                const tr = document.createElement("tr");
-                tr.classList.add("ranking-page-table__row");
-
-                const td_rank = document.createElement("td");
-                td_rank.classList.add("ranking-page-table__column", "ranking-page-table__column--rank");
-                td_rank.textContent = `#${(page - 1) * CLANS_PER_PAGE + index + 1}`;
-                tr.appendChild(td_rank);
-
-                const td_clan_tag = document.createElement("td");
-                td_clan_tag.classList.add("ranking-page-table__column", "ranking-page-table__user");
-                const td_clan_tag_link = document.createElement("a");
-                td_clan_tag_link.href = `https://score.kirino.sh/clan/${clan.id}`;
-                td_clan_tag_link.target = "_blank";
-                td_clan_tag_link.textContent = `[${clan.tag}]`;
-                td_clan_tag_link.style.color = `#${clan.color}`;
-                //bold clan tag
-                td_clan_tag_link.style.fontWeight = "bold";
-                td_clan_tag.appendChild(td_clan_tag_link);
-                //align clan tag to the right
-                td_clan_tag.style.textAlign = "right";
-                //padding right
-                td_clan_tag.style.paddingRight = "10px";
-                tr.appendChild(td_clan_tag);
-
-                const td_clan = document.createElement("td");
-                td_clan.classList.add("ranking-page-table__column", "ranking-page-table__user");
-                const td_clan_link = document.createElement("a");
-                td_clan_link.href = `https://score.kirino.sh/clan/${clan.id}`;
-                td_clan_link.target = "_blank";
-                td_clan_link.textContent = clan.name;
-                td_clan.appendChild(td_clan_link);
-                //align clan name to the left
-                td_clan.style.textAlign = "left";
-                tr.appendChild(td_clan);
-
-                for (const attribute of active_clan_ranking.attributes) {
-                    const formatter = attribute[0].formatter ?? ((val) => val.toLocaleString());
-                    const td = document.createElement("td");
-                    td.classList.add("ranking-page-table__column");
-                    if (!attribute[1]) {
-                        td.classList.add("ranking-page-table__column--dimmed");
-                    }
-                    td.textContent = formatter(attribute[0].clan_val ? attribute[0].clan_val(clan.clan_stats) : attribute[0].val(clan.clan_stats));
-                    if (attribute[0].tooltip_formatter) {
-                        td.setAttribute("data-html-title", attribute[0].tooltip_formatter(attribute[0].clan_val ? attribute[0].clan_val(clan.clan_stats) : attribute[0].val(clan.clan_stats)));
-                        td.setAttribute("title", "");
-                    }
-                    tr.appendChild(td);
-                }
-
-                ranking_tbody.appendChild(tr);
-            }
-
-            data.clans.forEach((clan, index) => {
-                _addTableBodyRow(clan, index);
-            });
-
-            clans_container.appendChild(createPagination(page, active_clan_ranking.link, clan_pages));
-        }
-    }
 
     async function runCleanErrorPage(title, subtitle, header_data = null) {
         document.title = `${title} · ${subtitle} | osu!`;
@@ -1532,241 +989,6 @@
         }
     }
 
-    //finds all usernames on the page and adds clan tags to them
-    async function runUsernames() {
-        let isWorking = false;
-        const _func = async () => {
-            if (isWorking) {
-                return;
-            }
-            isWorking = true;
-            try {
-                await new Promise(r => setTimeout(r, 1000));
-                if (window.location.href.includes("/beatmapsets/")) {
-                    if (is_osuplus_active) {
-                        await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
-                    }
-                }
-                const usercards = document.getElementsByClassName("js-usercard");
-                const usercards_big = document.getElementsByClassName("user-card");
-                const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
-                const user_ids_big = Array.from(usercards_big).map(card => getUserCardBigID(card));
-
-                const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
-                //unique user ids
-                const clan_data = await getUsersClans(_user_ids);
-
-                if (clan_data && Array.isArray(clan_data) && clan_data.length > 0) {
-                    modifyJsUserCards(clan_data);
-                }
-            } catch (err) {
-                console.error(err);
-            }
-            isWorking = false;
-        }
-        await _func();
-
-        const observer = new MutationObserver((mutationsList, observer) => {
-            for (let mutation of mutationsList) {
-                if (mutation.type === 'childList') {
-                    // On the user profile, update clan tags when "Load More" is called.
-                    if (window.location.href.includes("/users/") || window.location.href.includes("/u/")) {
-                        if (mutation.target.classList.contains("osu-layout__col-container")) {
-                            _func();
-                        }
-                    }
-
-                    if (window.location.href.includes("/beatmapsets/")) {
-                        if (
-                            mutation.target.classList.contains("beatmapset-scoreboard__main") ||
-                            mutation.target.classList.contains("beatmap-scoreboard-table") ||
-                            mutation.target.classList.contains("beatmap-scoreboard-table__body") ||
-                            mutation.target.classList.contains("osuplus-table")) {
-                            _func();
-                        }
-                    }
-
-                    if (window.location.href.includes("/community/chat")) {
-                        if (mutation.target.classList.contains("chat-conversation")) {
-                            _func();
-                        }
-                    }
-
-                    //if qtip--user-card is added or enabled, run the function
-                    if (mutation.target.classList.contains("qtip--user-card")) {
-                        _func();
-                    }
-                }
-            }
-        });
-
-        observer.observe(document.body, { childList: true, subtree: true });
-    }
-
-    function getUserCardBigID(card) {
-        const a = card.querySelector("a");
-        const href_split = a.href.split("/");
-        const user_id = href_split[href_split.length - 1];
-        return user_id;
-    }
-
-    function modifyJsUserCards(clan_data) {
-        // let usercards = document.querySelectorAll("[class*='js-usercard']");
-        //get all usercards that have class "js-usercard" or "user-card"
-        let usercards = document.querySelectorAll("[class*='js-usercard'], [class*='user-card']");
-        //filter out with class "comment__avatar"
-        usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
-        //filter out with child class "avatar avatar--guest avatar--beatmapset"
-        usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
-        //filter out with parent class "chat-conversation__new-chat-avatar"
-        usercards = usercards.filter(card => !card.parentElement.classList.contains("chat-conversation__new-chat-avatar"));
-        //filter out with parent class "beatmap-discussion-user-card__avatar"
-        usercards = usercards.filter(card => !card.parentElement.classList.contains("beatmap-discussion-user-card__avatar"));
-
-        if (window.location.href.includes("/rankings/")) {
-            //check if "ranking-page-table__user-link" have a div as first child
-            const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
-            const userLinksArray = Array.from(userLinks);
-
-            let uses_region_flags = false;
-            //if the first child is a div, and any has more than 1 child inside the div, then it uses region flags
-            uses_region_flags = userLinksArray.some(link => link.children[0].tagName === "DIV" && link.children[0].children.length > 1);
-
-            //if we use region flags, we append a fake one for divs that only have 1 child, to fill the gap
-            //basically duplicate the first child, as a test
-            if (uses_region_flags) {
-                usercards = usercards.map((card, i) => {
-                    const userLink = userLinksArray[i];
-                    if (userLink) {
-                        //if first element is A with "country" somewhere in the url, create a div at index 0, and move the A into it
-                        if (userLink.children[0].tagName === "A" && userLink.children[0].href.includes("country")) {
-                            //create a div at index 0
-                            const div = document.createElement("div");
-                            //move div into it
-                            div.appendChild(userLink.children[0]);
-                            //move div to index 1
-                            userLink.insertBefore(div, userLink.children[0]);
-                        }
-
-                        if ((userLink.children[0].tagName === "DIV" && userLink.children[0].children.length === 1)) {
-                            const cloned = userLink.children[0].children[0].cloneNode(true);
-                            userLink.children[0].appendChild(cloned);
-
-                            //add display: inline-block to both children
-                            userLink.children[0].children[0].style.display = "inline-block";
-                            userLink.children[0].children[1].style.display = "inline-block";
-                            //margin-left 4px to the second child
-                            userLink.children[0].children[1].style.marginLeft = "4px";
-                            //opacity 0 to second child
-                            userLink.children[0].children[1].style.opacity = "0";
-                        }
-                    }
-                    return card;
-                });
-            }
-        }
-
-        for (let i = 0; i < usercards.length; i++) {
-            if (!clan_data || clan_data.length === 0) return;
-
-            let user_id = null;
-            let user_clan_data = null;
-            //if user-card
-            if (usercards[i].classList.contains("user-card")) {
-                user_id = getUserCardBigID(usercards[i]);
-                user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
-
-                if (!user_clan_data || !user_id) {
-                    continue;
-                }
-
-                setBigUserCardClanTag(usercards[i], user_clan_data);
-
-                continue;
-            }
-
-            user_id = usercards[i].getAttribute("data-user-id");
-            user_clan_data = clan_data.find(clan => clan.osu_id == user_id);
-
-            if (!user_clan_data || !user_id) {
-                continue;
-            }
-
-            setUserCardBrickClanTag(usercards[i], user_clan_data);
-        }
-    }
-
-    const generateTagSpan = (clan) => {
-        const clanTag = document.createElement("a");
-        clanTag.textContent = `[${clan.clan.tag}] `;
-        clanTag.style.color = `#${clan.clan.color}`;
-        clanTag.style.fontWeight = "bold";
-        clanTag.href = `https://score.kirino.sh/clan/${clan.clan.id}`;
-        clanTag.target = "_blank";
-        //force single line
-        clanTag.style.whiteSpace = "nowrap";
-        //set id
-        clanTag.classList.add("inspector_user_tag");
-
-        return clanTag;
-    }
-
-    function setBigUserCardClanTag(card, clan) {
-        const usernameElement = card.getElementsByClassName("user-card__username u-ellipsis-pre-overflow")[0];
-
-        if (usernameElement.getElementsByClassName("inspector_user_tag").length > 0) {
-            return;
-        }
-
-        const clanTag = generateTagSpan(clan);
-        usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
-    }
-
-    function setUserCardBrickClanTag(card, clan) {
-        //get content of the element (the username)
-        let username = card.textContent;
-        //trim the username
-        username = username.trim();
-
-        //create a span element ([clan_tag] username), set the color and url to the clan tag
-        const clanTag = generateTagSpan(clan);
-
-        //if usercard has class "beatmap-scoreboard-table__cell-content" along with it, add whitespace-width padding
-        if (card.classList.contains("beatmap-scoreboard-table__cell-content") ||
-            card.classList.contains("beatmap-discussion-user-card__user-link")) {
-            clanTag.style.paddingRight = "4px";
-        }
-
-        //if usercard has a "user-card-brick__link" child, insert the clan tag in there at index 1
-        const usercardLink = card.getElementsByClassName("user-card-brick__link")[0];
-        if (usercardLink) {
-            //first check if one exists already
-            if (usercardLink.getElementsByClassName("inspector_user_tag").length > 0) {
-                return;
-            }
-            clanTag.style.marginRight = "5px";
-            usercardLink.insertBefore(clanTag, usercardLink.childNodes[1]);
-            //if usercard has parent with class "chat-message-group__sender"
-        } else if (card.parentElement.classList.contains("chat-message-group__sender")) {
-            //check if one exists already
-            if (card.parentElement.getElementsByClassName("inspector_user_tag").length > 0) {
-                return;
-            }
-
-            const parent = card.parentElement;
-            //find child in parent with class "chat-message-group__username"
-            const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
-            //insert clan tag in usernameElement before the text
-            usernameElement.insertBefore(clanTag, usernameElement.childNodes[0]);
-        } else {
-            //check if one exists already
-            if (card.getElementsByClassName("inspector_user_tag").length > 0) {
-                return;
-            }
-            card.insertBefore(clanTag, card.childNodes[0]);
-        }
-    }
-
     async function runScoreRankChanges() {
         //url has to match: "/rankings/{mode}/score{?page=1}"
         const _url = window.location.href;
@@ -2045,35 +1267,29 @@
         const user_exists = data.user != null &&
             (typeof data.coe !== "undefined" || typeof data.coe.error !== "string")
 
-        if (data.clan && !data.clan?.pending) {
-            //clan object can exist even if osualt data is not available
-            setOrCreateUserClanTagElement(data.clan.clan);
-            setOrCreateUserClanBannerElement(data.clan);
-        }
-
-        //if the user does not exist, give informational alert.
-        if (!user_exists) {
-            if (mode === "osu") {
-                //we only show the popup for osu! mode, other modes are not supported period.
-                popup("No osu!alt statistics available for this user.");
-            }
-            //skip other checks as redundant
-            return;
-        }
-
         if (data.coe && !data.coe.error) {
             setOrCreateCoeBannerElement(data.coe);
         }
 
-
         if (data.completion) {
             setCompletionistBadges(data.completion);
         }
-
+        
         //if theres more than just .coe
         if (data && Object.keys(data).length > 1) {
+            setNewRankGraph(data.scoreRankHistory, data.scoreRank, user_exists);
+
+            //if the user does not exist, give informational alert.
+            if (!user_exists) {
+                if (mode === "osu") {
+                    //we only show the popup for osu! mode, other modes are not supported period.
+                    popup("No osu!alt statistics available for this user.");
+                }
+                //skip other checks as redundant
+                return;
+            }
+            console.log("Running statistics elements");
             setOrCreateStatisticsElements(data);
-            setNewRankGraph(data.scoreRankHistory, data.scoreRank);
         }
     }
 
@@ -2085,73 +1301,6 @@
             }
             await new Promise(r => setTimeout(r, 100));
         }
-    }
-
-    let _userClansCache = [];
-    let _dontFetchFuture = []; //these ids did NOT returns from the fetch, so we don't fetch them again until the page is reloaded
-    async function getUsersClans(user_ids) {
-        let _user_ids = [...user_ids];
-        let cached_users = [];
-        if (_userClansCache.length > 0) {
-            for (let i = 0; i < _user_ids.length; i++) {
-                const user = _userClansCache.find(c => c.osu_id == _user_ids[i]);
-                if (user) {
-                    cached_users.push(user);
-                }
-            }
-        }
-
-        // filter out the cached users from the user_ids
-        if (cached_users.length > 0) {
-            _user_ids = _user_ids.filter(id => !cached_users.find(c => c.osu_id.toString() == id));
-        }
-
-        //filter out the _dontFetchFuture from the user_ids
-        if (_dontFetchFuture.length > 0) {
-            _user_ids = _user_ids.filter(id => !_dontFetchFuture.includes(id));
-        }
-
-        let uncached_users = [];
-
-        if (_user_ids.length > 0) {
-            const url = SCORE_INSPECTOR_API + "extension/clans/users";
-            const response = await fetch(url, {
-                headers: {
-                    "Access-Control-Allow-Origin": "*",
-                    "Content-Type": "application/json"
-                },
-                method: "POST",
-                body: JSON.stringify({
-                    ids: _user_ids
-                })
-            });
-
-            const data = await response.json();
-
-            if (!data || data.error) {
-                console.error(data?.error);
-                uncached_users = [];
-            } else {
-                uncached_users = JSON.parse(JSON.stringify(data));
-                //all IDs that are in _user_ids but not in uncached_users, we don't fetch them again
-                _dontFetchFuture = _user_ids.filter(id => !uncached_users.find(c => c.osu_id.toString() == id));
-            }
-        }
-
-        //add the uncached users to the cache if they are not already in it (async might have race conditions, we don't worry about it)
-
-        const merged_data = [...cached_users, ...uncached_users];
-
-        //push to cache if not already in it
-        if (uncached_users?.length > 0) {
-            uncached_users.forEach(u => {
-                if (!_userClansCache.find(c => c.osu_id == u.osu_id)) {
-                    _userClansCache.push(u);
-                }
-            });
-        }
-
-        return merged_data;
     }
 
     async function getUserData(user_id, username, mode = "osu") {
@@ -2415,95 +1564,6 @@
         return div;
     }
 
-    function setOrCreateUserClanTagElement(clan) {
-        //check if element with id "inspector_user_tag" exists
-        var userTagElement = document.getElementById("inspector_user_tag");
-        var userTagParent = null;
-
-        //if it doesn't, create it (clone it from the first child of the profile-info__name node)
-        if (!userTagElement) {
-            var profileNameParentNode = document.getElementsByClassName("profile-info__name")[0];
-            userTagElement = profileNameParentNode.childNodes[0].cloneNode(true);
-            userTagElement.id = "inspector_user_tag";
-
-            //create a div
-            var div = document.createElement("a");
-            div.style.display = "inline";
-            //no underline
-            div.style.textDecoration = "none";
-
-            //add cloned element to the div
-            div.appendChild(userTagElement);
-            userTagParent = div;
-
-            //add the div to the parent node
-            profileNameParentNode.insertBefore(div, profileNameParentNode.childNodes[0]);
-        } else {
-            //get the parent of the userTagElement
-            userTagParent = userTagElement.parentNode;
-        }
-
-        //set the text content of the element to the inspector_user tag
-        userTagElement.textContent = `[${clan.tag}]`;
-        userTagElement.style.color = `#${clan.color}`;
-        userTagElement.style.marginRight = "5px";
-        userTagElement.style.fontWeight = "bold";
-
-        //give it a tooltip
-        userTagParent.setAttribute("data-title", `<div>${clan.name}</div>`);
-        userTagParent.setAttribute("title", "");
-
-        //make it a link to the clan page
-        userTagParent.href = `https://score.kirino.sh/clan/${clan.id}`;
-        userTagParent.target = "_blank";
-    }
-
-    function setOrCreateUserClanBannerElement(user_clan) {
-        //find data-page-id "main"
-        const mainElement = document.querySelector("[data-page-id='main']");
-
-        //find index of class "profile-cover profile-info--cover"
-        const coverIndex = Array.from(mainElement.children).findIndex(child => child.classList.contains("profile-cover"));
-
-        var clanBanner = document.getElementById("inspector_user_banner");
-        if (clanBanner) {
-            //remove it and re-add it
-            clanBanner.remove();
-        }
-        clanBanner = getBaseBannerElement("inspector_user_banner", user_clan.clan.header_image_url);
-
-        var rawHtml = `
-            <div style="display: flex; align-items: center; height: 100%;">
-                <div style="display: flex; flex-direction: row; justify-content: center;">
-                    <div style="display: flex; flex-direction: column; justify-content: center; margin-right: 1rem;">
-                        <p style="margin-bottom: 0px; font-size: 22px; color: white;">
-                            <i class="fas fa-users"></i>
-                        </p>
-                    </div>
-                    <div style="display: flex; flex-direction: column; justify-content: center;">
-                        <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://score.kirino.sh/clan/${user_clan.clan.id}" target="_blank"><span id="inspector_user_clan_tag" style='color:#${user_clan.clan.color}'></span> <span id="inspector_user_clan_name"></span></a></p>
-                        <p style="margin-bottom: 0px; font-size: 12px;">Since ${new Date(user_clan.join_date).toLocaleDateString("en-GB", {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        })}</p>
-                    </div>
-                </div>
-            </div>
-        `;
-        var overlay = clanBanner.querySelector("#inspector_user_banner_overlay");
-        overlay.innerHTML = rawHtml;
-
-        var clanTagElement = overlay.querySelector("#inspector_user_clan_tag");
-        clanTagElement.innerText = `[${user_clan.clan.tag}]`;
-
-        var clanNameElement = overlay.querySelector("#inspector_user_clan_name");
-        clanNameElement.innerText = user_clan.clan.name;
-
-        //insert it after the cover
-        mainElement.insertBefore(clanBanner, mainElement.children[coverIndex + 2]);
-    }
-
     function setOrCreateCoeBannerElement(coe) {
         //find data-page-id "main"
         const mainElement = document.querySelector("[data-page-id='main']");
@@ -2578,7 +1638,7 @@
     let ppRankData = null;
     let scoreRankData = null;
     let graphHue = 0;
-    function setNewRankGraph(score_rank_history, current_rank) {
+    function setNewRankGraph(score_rank_history, current_rank, reorder_elements) {
         const TODAY = new Date();
 
         const cloned_rank_history = [...score_rank_history ?? []];
@@ -2682,9 +1742,9 @@
             }
             updateLinks();
 
-            chartParent.insertBefore(chartOwner, chartParent.children[0]);
+            chartParent.insertBefore(chartOwner, chartParent.children[reorder_elements ? 0 : 1]);
             //insert the toggle after the chart
-            chartParent.insertBefore(toggleLink, chartParent.children[1]);
+            chartParent.insertBefore(toggleLink, chartParent.children[reorder_elements ? 1 : 2]);
 
             //completely REMOVES the link if there is no score rank data
             // if (!scoreRankData || scoreRankData.length === 0) {
