@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2025-03-05.59
+// @version      2025-03-05.60
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -401,11 +401,11 @@
         {
             name: "performance",
             attr: "performance",
-            link: "/rankings/osu/performance"
+            link: "/rankings/{mode}/performance"
         }, {
             name: "score",
             attr: "score",
-            link: "/rankings/osu/score"
+            link: "/rankings/{mode}/score"
         },
         ...CUSTOM_RANKINGS.map(ranking => {
             return {
@@ -417,11 +417,11 @@
         {
             name: "country",
             attr: "country",
-            link: "/rankings/osu/country"
+            link: "/rankings/{mode}/country"
         },{
             name: "team",
             attr: "team",
-            link: "/rankings/osu/team"
+            link: "/rankings/{mode}/team"
         }, {
             name: "multiplayer",
             attr: "multiplayer",
@@ -429,15 +429,16 @@
         }, {
             name: "daily challenge",
             attr: "daily-challenge",
-            link: "/rankings/daily-challenge"
+            link: "/rankings/daily-challenge/.*"
         }, {
             name: "seasons",
             attr: "seasons",
-            link: "/seasons/latest"
+            link: "/seasons/.*",
+            default_linker: "latest"
         }, {
             name: "spotlights (old)",
             attr: "spotlights",
-            link: "/rankings/osu/charts"
+            link: "/rankings/{mode}/charts"
         }, {
             name: "kudosu",
             attr: "kudosu",
@@ -782,7 +783,7 @@
 
                 const a = document.createElement("a");
                 a.classList.add("header-nav-v4__link");
-                a.href = item.link;
+                a.href = `https://osu.ppy.sh${item.link.replace("/.*", item.default_linker ? `/${item.default_linker}` : "").replace("{mode}", data.mode)}`;
                 a.textContent = item.name;
                 a.setAttribute("data-content", item.attr);
                 li.appendChild(a);
@@ -816,6 +817,17 @@
         let url = window.location.href.split("?")[0];
         //remove the domain from the url
         url = url.replace("https://osu.ppy.sh", "");
+
+        let mode = 'osu';
+        // /rankings/osu/...
+        // /rankings/taiko/... we need to get the mode from the url
+        if (url.includes("/rankings/")) {
+            mode = url.split("/")[2];
+
+            if(!MODE_SLUGS_ALT.includes(mode)) {
+                mode = 'osu';
+            }
+        }
 
         const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
         // const active_custom_ranking = lb_page_nav_items.find(item => item.link === url);
@@ -952,11 +964,21 @@
             nav2_menu_link_bar_span.appendChild(nav2_menu_link_bar_span_new);
         }
 
-        const active_ranking = lb_page_nav_items.find(item => item.link === url);
+        // const active_ranking = lb_page_nav_items.find(item => item.link.replace("{mode}", mode) === url);
+        const active_ranking = lb_page_nav_items.find(item => {
+            //some links may have "/*" at the end, in that case, we need to check if the url starts with the link instead of checking for equality
+            if (item.link.includes("/.*")) {
+                return url.startsWith(item.link.replace("{mode}", mode).replace("/.*", ""));
+            }
+
+            return item.link.replace("{mode}", mode) === url;
+        });
+        console.log(lb_page_nav_items[0].link, url, active_ranking);
         //empty the header nav
         createRankingNavigation({
             nav: headerNav,
             items: lb_page_nav_items,
+            mode: mode,
             // active: active_custom_ranking ? active_custom_ranking.api_path : null
             active: active_ranking ? active_ranking.attr : null
         });
