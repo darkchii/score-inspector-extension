@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2025-02-20.58
+// @version      2025-03-05.59
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -418,6 +418,10 @@
             name: "country",
             attr: "country",
             link: "/rankings/osu/country"
+        },{
+            name: "team",
+            attr: "team",
+            link: "/rankings/osu/team"
         }, {
             name: "multiplayer",
             attr: "multiplayer",
@@ -783,7 +787,7 @@
                 a.setAttribute("data-content", item.attr);
                 li.appendChild(a);
 
-                if (item.attr === data.active) {
+                if (data.active !== null && item.attr.toLowerCase() === data.active.toLowerCase()) {
                     a.classList.add("header-nav-v4__link--active");
                 }
             }
@@ -814,6 +818,7 @@
         url = url.replace("https://osu.ppy.sh", "");
 
         const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
+        // const active_custom_ranking = lb_page_nav_items.find(item => item.link === url);
         if (active_custom_ranking) {
             //set body style to "--base-hue-default: 115; --base-hue-override: 115"
             document.body.style.setProperty("--base-hue-default", 115);
@@ -947,11 +952,13 @@
             nav2_menu_link_bar_span.appendChild(nav2_menu_link_bar_span_new);
         }
 
+        const active_ranking = lb_page_nav_items.find(item => item.link === url);
         //empty the header nav
         createRankingNavigation({
             nav: headerNav,
             items: lb_page_nav_items,
-            active: active_custom_ranking ? active_custom_ranking.api_path : null
+            // active: active_custom_ranking ? active_custom_ranking.api_path : null
+            active: active_ranking ? active_ranking.attr : null
         });
 
         //if we are on daily-challenge page
