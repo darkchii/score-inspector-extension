@@ -1150,7 +1150,7 @@
                     }
                     td.textContent = formatter(attr[0].val(data));
                     if (attr[0].tooltip_formatter) {
-                        td.setAttribute("data-html-title", attr[0].tooltip_formatter(attr[0].val(data)));
+                        td.setAttribute("data-html-title", attr[0].tooltip_formatter(Number(attr[0].val(data) ?? 0)));
                         td.setAttribute("title", "");
                     }
                     tr.appendChild(td);
