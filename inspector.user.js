@@ -613,7 +613,6 @@
             const beatmap = await getBeatmapData(active_beatmap_id);
 
             if (beatmap && !Array.isArray(beatmap)) {
-                console.log(beatmap);
                 //get beatmap-basic-stats div
                 const beatmap_basic_stats = document.getElementsByClassName("beatmap-basic-stats")[0];
 
@@ -667,12 +666,15 @@
 
                 const usercards = document.getElementsByClassName("js-usercard");
                 const usercards_big = document.getElementsByClassName("user-card");
-                const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
-                const user_ids_big = Array.from(usercards_big).map(card => getUserCardBigID(card));
+                //remove found elements that already have a (nested) child with class "inspector_user_tag"
+                const usercards_filtered = Array.from(usercards).filter(card => !card.querySelector(".inspector_user_tag"));
+                const usercards_big_filtered = Array.from(usercards_big).filter(card => !card.querySelector(".inspector_user_tag"));
+
+                const user_ids = Array.from(usercards_filtered).map(card => card.getAttribute("data-user-id"));
+                const user_ids_big = Array.from(usercards_big_filtered).map(card => getUserCardBigID(card));
                 const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
 
                 const teams = await getTeams(_user_ids);
-                console.log(teams);
 
                 if (teams && Object.keys(teams).length > 0) {
                     modifyJsUserCards(teams);
@@ -693,11 +695,13 @@
                         }
                     }
 
-                    if (window.location.href.includes("/beatmapsets/")) {
+                    if (window.location.href.includes("/beatmapsets")) {
                         if (
                             mutation.target.classList.contains("beatmapset-scoreboard__main") ||
                             mutation.target.classList.contains("beatmap-scoreboard-table") ||
                             mutation.target.classList.contains("beatmap-scoreboard-table__body") ||
+                            mutation.target.classList.contains("beatmapsets__content") ||
+                            mutation.target.classList.contains("beatmapsets") ||
                             mutation.target.classList.contains("osuplus-table")) {
                             _func();
                         }
@@ -1099,16 +1103,34 @@
                 const userLinkParent = document.createElement("div");
                 userLinkParent.classList.add("ranking-page-table__user-link");
 
-                const countryFlagUrl = document.createElement("a");
-                countryFlagUrl.href = `/rankings/osu/performance?country=${data.country_code}`;
-                countryFlagUrl.style.display = "inline-block";
+                const flagsSpan = document.createElement("span");
+                flagsSpan.classList.add("ranking-page-table__flags");
 
-                const countryFlag = document.createElement("span");
-                countryFlag.classList.add("flag-country", "flag-country--medium");
-                countryFlag.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
-                countryFlag.setAttribute("title", data.country_name);
-                countryFlagUrl.appendChild(countryFlag);
-                userLinkParent.appendChild(countryFlagUrl);
+                const countryLink = document.createElement("a");
+                countryLink.href = `/rankings/osu/performance?country=${data.country_code}`;
+                countryLink.classList.add("u-contents");
+
+                const countryLinkSpan = document.createElement("span");
+                countryLinkSpan.classList.add("flag-country");
+                countryLinkSpan.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
+                countryLinkSpan.setAttribute("title", data.country_name);
+                countryLink.appendChild(countryLinkSpan);
+                flagsSpan.appendChild(countryLink);
+
+                if(data.team) {
+                    const teamLink = document.createElement("a");
+                    teamLink.href = `https://osu.ppy.sh/teams/${data.team.id}`;
+                    teamLink.classList.add("u-contents");
+
+                    const teamLinkSpan = document.createElement("span");
+                    teamLinkSpan.classList.add("flag-team");
+                    teamLinkSpan.style.backgroundImage = `url(${data.team.flag_url})`;
+                    teamLinkSpan.setAttribute("title", data.team.name);
+                    teamLink.appendChild(teamLinkSpan);
+                    flagsSpan.appendChild(teamLink);
+                }
+
+                userLinkParent.appendChild(flagsSpan);
 
                 const userLink = document.createElement("a");
                 userLink.classList.add("ranking-page-table__user-link-text", "js-usercard");
@@ -1164,7 +1186,6 @@
 
             return item.link.replace("{mode}", mode) === url;
         });
-        console.log(lb_page_nav_items[0].link, url, active_ranking);
         //empty the header nav
         createRankingNavigation({
             nav: headerNav,
@@ -1513,7 +1534,6 @@
                 //skip other checks as redundant
                 return;
             }
-            console.log("Running statistics elements");
             setOrCreateStatisticsElements(data);
         }
     }
