@@ -1480,6 +1480,7 @@
         }
 
         if (data.team) {
+            setOrCreateUserTeamTagElement(data.team);
             setOrCreateTeamBannerElement(data.team);
         }
 
@@ -1503,6 +1504,37 @@
             console.log("Running statistics elements");
             setOrCreateStatisticsElements(data);
         }
+    }
+
+    function setOrCreateUserTeamTagElement(team) {
+        var userTagElement = document.getElementById("inspector_user_tag");
+        var userTagParent = null;
+
+        if (!userTagElement) {
+            var profileNameParentNode = document.getElementsByClassName("profile-info__name")[0];
+            userTagElement = profileNameParentNode.childNodes[0].cloneNode(true);
+            userTagElement.id = "inspector_user_tag";
+
+            var div = document.createElement("a");
+            div.style.display = "inline";
+            div.style.textDecoration = "none";
+            div.appendChild(userTagElement);
+
+            userTagParent = div;
+            profileNameParentNode.insertBefore(div, profileNameParentNode.childNodes[0]);
+        } else {
+            userTagParent = userTagElement.parentNode;
+        }
+
+        userTagElement.textContent = `[${team.short_name}]`;
+        userTagElement.style.color = `${team.color}`;
+        userTagElement.style.marginRight = "5px";
+        userTagElement.style.fontWeight = "bold";
+
+        userTagParent.setAttribute("data-title", `<div>${team.name}</div>`);
+        userTagParent.setAttribute("title", "");
+        userTagParent.href = `https://osu.ppy.sh/teams/${team.id}`;
+        userTagParent.target = "_blank";
     }
 
     async function WaitForElement(selector, timeout = 5000) {
