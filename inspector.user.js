@@ -709,6 +709,12 @@
                         }
                     }
 
+                    if (window.location.href.includes("/home/friends")) {
+                        if (mutation.target.classList.contains("user-list__items")) {
+                            _func();
+                        }
+                    }
+
                     if (mutation.target.classList.contains("qtip--user-card")) {
                         _func();
                     }
