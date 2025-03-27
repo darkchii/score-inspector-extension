@@ -813,6 +813,12 @@
                 index = 2;
             }
 
+            //if theres a child element of card with class "forum-user-icon", index = 1
+            const userIcon = card.getElementsByClassName("forum-user-icon")[0];
+            if (userIcon) {
+                index = 1;
+            }
+
             card.insertBefore(teamTag, card.childNodes[index]);
         }
     }
