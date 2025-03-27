@@ -629,14 +629,6 @@
                 return;
             }
 
-            const new_background_url = `https://bg.kirino.sh/get/${active_beatmap_id}`;
-            const cover = document.getElementsByClassName('beatmapset-cover beatmapset-cover--full')[0];
-            const current_background_url = cover.style.getPropertyValue('--bg').replace('url(', '').replace(')', '');
-            if (!orig_bg_cache[beatmapset_id]) {
-                orig_bg_cache[beatmapset_id] = current_background_url;
-            }
-            cover.style.setProperty('--bg', `url(${new_background_url}), url(${orig_bg_cache[beatmapset_id]})`);
-
             //get beatmap data
             const beatmap = await getBeatmapData(active_beatmap_id);
 
