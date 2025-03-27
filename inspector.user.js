@@ -801,7 +801,13 @@
             if (card.getElementsByClassName("inspector_user_tag").length > 0) {
                 return;
             }
-            card.insertBefore(teamTag, card.childNodes[0]);
+            let index = 0;
+            //if parent has class "team-members-leaderboard-item__username", index = 1
+            if (card.classList.contains("team-members-leaderboard-item__username")) {
+                index = 2;
+            }
+
+            card.insertBefore(teamTag, card.childNodes[index]);
         }
     }
 
