@@ -19,36 +19,15 @@
 (function () {
     'use strict';
 
-    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    const SCORE_INSPECTOR_API = "http://localhost:3863/";
+    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
     const IMAGE_ICON_SPINNERS = "data:image/png;base64,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";
 
-    const MODE_NAMES = [
-        "osu!",
-        "osu!taiko",
-        "osu!catch",
-        "osu!mania"
-    ];
-
-    const MODE_SLUGS = [
-        "osu",
-        "taiko",
-        "catch",
-        "mania"
-    ]
-
-    const MODE_SLUGS_ALT = [
-        "osu",
-        "taiko",
-        "fruits",
-        "mania"
-    ]
-
-    const GRAPHS = [
-        "Performance",
-        "Score"
-    ]
-
+    const MODE_NAMES = ["osu!", "osu!taiko", "osu!catch", "osu!mania"];
+    const MODE_SLUGS = ["osu", "taiko", "catch", "mania"];
+    const MODE_SLUGS_ALT = ["osu", "taiko", "fruits", "mania"];
+    const GRAPHS = ["Performance", "Score"];
     const COE_ATTENDEE_TYPES = {
         'SPECTATOR_ONE_DAY': 'Spectator (1 day)',
         'SPECTATOR_ALL_DAYS': 'Spectator (all days)',
@@ -418,7 +397,7 @@
             name: "country",
             attr: "country",
             link: "/rankings/{mode}/country"
-        },{
+        }, {
             name: "team",
             attr: "team",
             link: "/rankings/{mode}/team"
@@ -531,6 +510,7 @@
         await runScoreRankCompletionPercentages();
         await runScoreRankChanges();
         await runBeatmapPage();
+        await runUsernames();
     }
 
     function start() {
@@ -667,6 +647,207 @@
             runner();
         })
         runner();
+    }
+
+    //Add team tags
+    async function runUsernames() {
+        let isWorking = false;
+
+        const _func = async () => {
+            if (isWorking) return;
+
+            isWorking = true;
+            try {
+                await new Promise(r => setTimeout(r, 1000));
+                if (window.location.href.includes("/beatmapsets/")) {
+                    if (is_osuplus_active) {
+                        await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
+                    }
+                }
+
+                const usercards = document.getElementsByClassName("js-usercard");
+                const usercards_big = document.getElementsByClassName("user-card");
+                const user_ids = Array.from(usercards).map(card => card.getAttribute("data-user-id"));
+                const user_ids_big = Array.from(usercards_big).map(card => getUserCardBigID(card));
+                const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
+
+                const teams = await getTeams(_user_ids);
+                console.log(teams);
+
+                if (teams && Object.keys(teams).length > 0) {
+                    modifyJsUserCards(teams);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            isWorking = false;
+        }
+        await _func();
+
+        const observer = new MutationObserver((mutationsList, observer) => {
+            for (let mutation of mutationsList) {
+                if (mutation.type === 'childList') {
+                    if (window.location.href.includes("/users/") || window.location.href.includes("/u/")) {
+                        if (mutation.target.classList.contains("osu-layout__col-container")) {
+                            _func();
+                        }
+                    }
+
+                    if (window.location.href.includes("/beatmapsets/")) {
+                        if (
+                            mutation.target.classList.contains("beatmapset-scoreboard__main") ||
+                            mutation.target.classList.contains("beatmap-scoreboard-table") ||
+                            mutation.target.classList.contains("beatmap-scoreboard-table__body") ||
+                            mutation.target.classList.contains("osuplus-table")) {
+                            _func();
+                        }
+                    }
+
+                    if (window.location.href.includes("/community/chat")) {
+                        if (mutation.target.classList.contains("chat-conversation")) {
+                            _func();
+                        }
+                    }
+
+                    if (mutation.target.classList.contains("qtip--user-card")) {
+                        _func();
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function modifyJsUserCards(teams) {
+        if (!teams || Object.keys(teams).length === 0) return;
+
+        let usercards = document.querySelectorAll("[class*='js-usercard'], [class*='user-card']");
+        usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
+        usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
+        usercards = usercards.filter(card => !card.parentElement.classList.contains("chat-conversation__new-chat-avatar"));
+        usercards = usercards.filter(card => !card.parentElement.classList.contains("beatmap-discussion-user-card__avatar"));
+
+        if (window.location.href.includes("/rankings/")) {
+            const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
+            const userLinksArray = Array.from(userLinks);
+            let uses_region_flags = false;
+            uses_region_flags = userLinksArray.some(link => link.children[0].tagName === "DIV" && link.children[0].children.length > 1);
+        }
+
+        for (let i = 0; i < usercards.length; i++) {
+            let user_id = null;
+            let team = null;
+
+            if (usercards[i].classList.contains("user-card")) {
+                user_id = getUserCardBigID(usercards[i]);
+                if (!user_id) continue;
+
+                team = teams[user_id];
+                if (!team) continue;
+
+                setBigUserCardTeamTag(usercards[i], team.team);
+                continue;
+            }
+
+            user_id = usercards[i].getAttribute("data-user-id");
+            if (!user_id) continue;
+            team = teams[user_id];
+
+            if (!team) continue;
+
+            setUserCardBrickTeamTag(usercards[i], team.team);
+        }
+    }
+
+    function setBigUserCardTeamTag(card, team) {
+        const usernameElement = card.getElementsByClassName("user-card__username u-ellipsis-pre-overflow")[0];
+
+        if (usernameElement.getElementsByClassName("inspector_user_tag").length > 0) {
+            return;
+        }
+        const teamTag = generateTagSpan(team);
+        usernameElement.insertBefore(teamTag, usernameElement.childNodes[0]);
+    }
+
+    function setUserCardBrickTeamTag(card, team) {
+        let username = card.textContent;
+        username = username.trim();
+        const teamTag = generateTagSpan(team);
+
+
+        if (card.classList.contains("beatmap-scoreboard-table__cell-content") ||
+            card.classList.contains("beatmap-discussion-user-card__user-link")) {
+            teamTag.style.paddingRight = "4px";
+        }
+
+        const usercardLink = card.getElementsByClassName("user-card-brick__link")[0];
+
+        if (usercardLink) {
+            if (usercardLink.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
+            }
+
+            teamTag.style.marginRight = "5px";
+            usercardLink.insertBefore(teamTag, usercardLink.childNodes[1]);
+        } else if (card.parentElement.classList.contains("chat-message-group__sender")) {
+            if (card.parentElement.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
+            }
+            const parent = card.parentElement;
+            const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
+            usernameElement.insertBefore(teamTag, usernameElement.childNodes[0]);
+        } else {
+            if (card.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
+            }
+            card.insertBefore(teamTag, card.childNodes[0]);
+        }
+    }
+
+    const generateTagSpan = (team) => {
+        const teamTag = document.createElement("a");
+        teamTag.textContent = `[${team.short_name}] `;
+        teamTag.style.color = `${team.color}`;
+        teamTag.style.fontWeight = "bold";
+        teamTag.href = `https://osu.ppy.sh/teams/${team.id}`;
+        teamTag.target = "_blank";
+        teamTag.style.whiteSpace = "nowrap";
+        teamTag.classList.add("inspector_user_tag");
+        return teamTag;
+    }
+
+    function getUserCardBigID(card) {
+        const a = card.querySelector("a");
+        const href_split = a.href.split("/");
+        const user_id = href_split[href_split.length - 1];
+        return user_id;
+    }
+
+    async function getTeams(user_id_array) {
+        const teams = await fetch(`${SCORE_INSPECTOR_API}extension/users/teams`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${GM_getValue("access_token")}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                ids: user_id_array
+            })
+        }).then(res => res.json()).catch(err => {
+            console.error(err);
+            return null;
+        });
+
+        let team_map = {};
+
+        if (teams && Array.isArray(teams) && teams.length > 0) {
+            teams.forEach(team => {
+                team_map[team.user_id] = team;
+            });
+        }
+
+        return team_map;
     }
 
     function createPagination(page, base_url, max_rank_page = 200) {
@@ -816,7 +997,7 @@
         if (url.includes("/rankings/")) {
             mode = url.split("/")[2];
 
-            if(!MODE_SLUGS_ALT.includes(mode)) {
+            if (!MODE_SLUGS_ALT.includes(mode)) {
                 mode = 'osu';
             }
         }
@@ -1292,10 +1473,14 @@
             setOrCreateCoeBannerElement(data.coe);
         }
 
+        if (data.team) {
+            setOrCreateTeamBannerElement(data.team);
+        }
+
         if (data.completion) {
             setCompletionistBadges(data.completion);
         }
-        
+
         //if theres more than just .coe
         if (data && Object.keys(data).length > 1) {
             setNewRankGraph(data.scoreRankHistory, data.scoreRank, user_exists);
@@ -1585,12 +1770,52 @@
         return div;
     }
 
-    function setOrCreateCoeBannerElement(coe) {
-        //find data-page-id "main"
+    function getBannerIndex() {
         const mainElement = document.querySelector("[data-page-id='main']");
-
-        //find index of class "profile-cover profile-info--cover"
         const coverIndex = Array.from(mainElement.children).findIndex(child => child.classList.contains("profile-cover"));
+        return { mainElement, coverIndex };
+    }
+
+    function setOrCreateTeamBannerElement(team) {
+        const { mainElement, coverIndex } = getBannerIndex();
+
+        var teamBanner = document.getElementById("inspector_team_banner");
+        if (teamBanner) {
+            //remove it and re-add it
+            teamBanner.remove();
+        }
+        teamBanner = getBaseBannerElement("inspector_team_banner", team.header_url, true);
+
+        var rawHtml = `
+            <div style="display: flex; align-items: center; height: 100%;">
+                <div style="display: flex; flex-direction: row; justify-content: center;">
+                    <div style="display: flex; flex-direction: column; justify-content: center; margin-right: 1rem;">
+                        <p style="margin-bottom: 0px; font-size: 22px; color: white;">
+                            <i class="fas fa-users"></i>
+                        </p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                        <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://osu.ppy.sh/teams/${team.id}" target="_blank"><span id="inspector_user_clan_tag" style='color:${team.color}'></span> <span id="inspector_user_clan_name"></span></a></p>
+                        <p style="margin-bottom: 0px; font-size: 12px;">Placeholder text</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        var overlay = teamBanner.querySelector("#inspector_user_banner_overlay");
+        overlay.innerHTML = rawHtml;
+
+        var clanTagElement = overlay.querySelector("#inspector_user_clan_tag");
+        clanTagElement.innerText = `[${team.short_name}]`;
+
+        var clanNameElement = overlay.querySelector("#inspector_user_clan_name");
+        clanNameElement.innerText = team.name;
+
+        mainElement.insertBefore(teamBanner, mainElement.children[coverIndex + 2]);
+    }
+
+    function setOrCreateCoeBannerElement(coe) {
+        const { mainElement, coverIndex } = getBannerIndex();
 
         var coeBanner = document.getElementById("inspector_coe_banner");
         if (coeBanner) {
