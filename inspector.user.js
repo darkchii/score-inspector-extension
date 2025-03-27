@@ -1523,7 +1523,7 @@
 
         //if theres more than just .coe
         if (data && Object.keys(data).length > 1) {
-            setNewRankGraph(data.scoreRankHistory, data.scoreRank, user_exists);
+            setNewRankGraph(data.scoreRankHistory, data.stats?.scoreRank, user_exists);
 
             //if the user does not exist, give informational alert.
             if (!user_exists) {
