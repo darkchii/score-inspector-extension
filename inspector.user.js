@@ -440,6 +440,26 @@
         return number + postfixes[count];
     }
 
+    let MODS_DATA = null;
+    async function modsDataMakeSure() {
+        if (MODS_DATA) return MODS_DATA;
+        const response = await fetch("https://raw.githubusercontent.com/ppy/osu-web/refs/heads/master/database/mods.json");
+        if (response.status === 200) {
+            // MODS_DATA = await response.json();
+            // return MODS_DATA;
+            let temp_data = await response.json();
+            MODS_DATA = {};
+            for (const mod_set of temp_data) {
+                let ruleset = mod_set.Name;
+                MODS_DATA[ruleset] = mod_set.Mods;
+            }
+            return MODS_DATA;
+        } else {
+            console.error("Error fetching mods data", response.status, response.statusText);
+            return null;
+        }
+    }
+
     async function run() {
         GM_addStyle(`
             .toast {
@@ -510,6 +530,7 @@
         await runUserPage();
         await runScoreRankCompletionPercentages();
         await runScoreRankChanges();
+        await runScorePage();
         await runBeatmapPage();
         await runUsernames();
     }
@@ -586,17 +607,444 @@
         return { container, header_nav };
     }
 
+    async function runScorePage() {
+        if (!window.location.href.includes("/scores/")) {
+            return;
+        }
+
+        try {
+            let score_id = window.location.href.split("/")[4];
+
+            if (!parseInt(score_id)) {
+                console.error("Invalid score id");
+                return;
+            }
+            score_id = parseInt(score_id);
+
+            await modsDataMakeSure();
+
+            const score_data = await getScoreData();
+
+            let ruleset_scores = {};
+            let ruleset_beatmaps = {};
+
+            //get scores for all rulesets
+            for (const ruleset of MODE_SLUGS_ALT) {
+                const data = await getUserBeatmapScores(score_data.score.user_id, score_data.score.beatmap_id, ruleset);
+                const _scores = data.scores;
+                const _beatmap = data.beatmap;
+                const _attributes = data.attributes;
+
+                //sort by pp desc
+                _scores.sort((a, b) => {
+                    return b.pp - a.pp;
+                });
+
+                if (_scores && _scores.length > 0) {
+                    ruleset_scores[ruleset] = _scores;
+                }
+
+                if (_beatmap) {
+                    ruleset_beatmaps[ruleset] = {
+                        ..._beatmap,
+                        attributes: _attributes
+                    };
+                }
+            }
+
+            //find the element with class "score-stats"
+            const score_stats = document.getElementsByClassName("score-stats")[0];
+
+            //insert an empty div after the score-stats element (this will contain all extra scores)
+            const extra_scores_div = document.createElement("div");
+            extra_scores_div.classList.add("score-stats");
+            //force full width
+            extra_scores_div.style.width = "100%";
+
+            //insert
+            score_stats.parentNode.insertBefore(extra_scores_div, score_stats.nextSibling);
+
+            //if scores is empty, just insert a message
+            if (!ruleset_scores || Object.keys(ruleset_scores).length === 0) {
+                const no_scores = document.createElement("div");
+                no_scores.classList.add("no-scores");
+                no_scores.textContent = "User has no scores on this beatmap";
+                extra_scores_div.appendChild(no_scores);
+                return;
+            } else {
+                const proxy_scoreboard_element = document.createElement("div");
+                proxy_scoreboard_element.classList.add("beatmapset-scoreboard");
+                proxy_scoreboard_element.style.width = "100%";
+
+                extra_scores_div.appendChild(proxy_scoreboard_element);
+                for (const ruleset of MODE_SLUGS_ALT) {
+                    if (!ruleset_scores[ruleset]) continue;
+
+                    const proxy_scoreboard_item_element = document.createElement("div");
+                    proxy_scoreboard_item_element.classList.add("beatmapset-scoreboard__main");
+
+                    const ruleset_scores_container = document.createElement("div");
+                    ruleset_scores_container.classList.add("beatmap-scoreboard-top__item");
+                    proxy_scoreboard_item_element.appendChild(ruleset_scores_container);
+
+                    // ruleset_scores_container.innerHTML = `<h3>${ruleset}</h3>`;
+                    // extra_scores_div.appendChild(ruleset_scores_container);
+                    const ruleset_scores_header = document.createElement("h4");
+                    ruleset_scores_header.classList.add("ruleset-scores-header");
+
+                    const ruleset_scores_header_icon = document.createElement("span");
+                    //give it "fal fa-extra-mode-${ruleset}" class
+                    ruleset_scores_header_icon.classList.add("fal", `fa-extra-mode-${ruleset}`);
+                    ruleset_scores_header.appendChild(ruleset_scores_header_icon);
+
+                    const ruleset_scores_header_text = document.createElement("span");
+                    ruleset_scores_header_text.textContent = ` ${ruleset}`;
+                    ruleset_scores_header.appendChild(ruleset_scores_header_text);
+
+                    ruleset_scores_container.appendChild(ruleset_scores_header);
+                    proxy_scoreboard_element.appendChild(proxy_scoreboard_item_element);
+
+                    // const score_element = getUserScoreElement(scores[ruleset][0]);
+                    // for (const [index, score] of scores[ruleset]) {
+                    for (const [index, score] of ruleset_scores[ruleset].entries()) {
+                        const score_element = getUserScoreElement(score, score_data.score.user, ruleset_beatmaps[ruleset], index);
+                        if (!score_element) continue;
+
+                        if(score_data.score.id == score.id) {
+                            //add a subtle gold glow to the score element
+                            //not a class, use inline style
+                            score_element.style.boxShadow = "0 0 10px 5px rgba(255, 215, 0, 0.5)";
+                        }
+
+                        ruleset_scores_container.appendChild(score_element);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+
+    }
+
+    function getUserScoreElement(score, user, beatmap, index) {
+        let time_ago = null;
+        let time_ago_long = null;
+        //time_ago is a simple string i.e: 2d (2 days ago), 1m (1 month ago), 1y (1 year ago)
+        if (score.ended_at) {
+            const date = new Date(score.ended_at);
+            const now = new Date();
+            const diff = now - date;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
+            const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+            if (days < 30) {
+                time_ago = `${days}d`;
+                time_ago_long = `${days} day${days > 1 ? 's' : ''} ago`;
+            } else if (months < 12) {
+                time_ago = `${months}m`;
+                time_ago_long = `${months} month${months > 1 ? 's' : ''} ago`;
+            } else {
+                time_ago = `${years}y`;
+                time_ago_long = `${years} year${years > 1 ? 's' : ''} ago`;
+            }
+        } else {
+            time_ago = "N/A";
+            time_ago_long = "N/A";
+        }
+
+        //just make a test element and see if it works
+        const score_element = document.createElement("div");
+        score_element.classList.add("beatmap-scoreboard-top__item");
+
+        const beatmap_score_top = document.createElement("div");
+        beatmap_score_top.classList.add("beatmap-score-top");
+
+        const score_element_link = document.createElement("a");
+        score_element_link.classList.add("beatmap-score-top__link-container");
+        score_element_link.href = `https://osu.ppy.sh/scores/${score.id}`;
+        beatmap_score_top.appendChild(score_element_link);
+
+        const beatmap_score_section = document.createElement("div");
+        beatmap_score_section.classList.add("beatmap-score-top__section");
+        //change padding to 5px
+        beatmap_score_section.style.padding = "5px";
+
+        beatmap_score_top.appendChild(beatmap_score_section);
+        score_element.appendChild(beatmap_score_top);
+
+        //Create user portion of the score card
+        const user_card = document.createElement("div");
+        user_card.classList.add("beatmap-score-top__wrapping-container", "beatmap-score-top__wrapping-container--left");
+
+        //Position element
+        const score_position_rank = getUserScoreElementPosition(score, index);
+        user_card.appendChild(score_position_rank);
+
+        //Avatar element
+        const score_avatar = document.createElement("div");
+        score_avatar.classList.add("beatmap-score-top__avatar");
+
+        const score_avatar_link = document.createElement("a");
+        score_avatar_link.classList.add("u-hover");
+        score_avatar_link.href = `https://osu.ppy.sh/users/${score.user_id}`;
+        score_avatar.appendChild(score_avatar_link);
+
+        const score_avatar_link_image = document.createElement("span");
+        score_avatar_link_image.classList.add("avatar", "avatar--guest");
+        score_avatar_link_image.style.backgroundImage = `url(https://a.ppy.sh/${score.user_id})`;
+        //set width+height to 50px
+        score_avatar_link_image.style.width = "50px";
+        score_avatar_link_image.style.height = "50px";
+        score_avatar_link.appendChild(score_avatar_link_image);
+
+        user_card.appendChild(score_avatar);
+
+        //create player element
+        const score_player = getUserScoreElementPlayer(score, user, time_ago_long);
+        //add user card
+        beatmap_score_section.appendChild(user_card);
+
+        const score_card = document.createElement("div");
+        score_card.classList.add("beatmap-score-top__wrapping-container", "beatmap-score-top__wrapping-container--right");
+
+        const score_stat_group_score_parent = document.createElement("div");
+        score_stat_group_score_parent.classList.add("beatmap-score-top__stats");
+        score_stat_group_score_parent.appendChild(getScoreStatElement("Total Score", score.classic_total_score, 'score'));
+
+        const score_stat_group_acc_parent = document.createElement("div");
+        score_stat_group_acc_parent.classList.add("beatmap-score-top__stats");
+        score_stat_group_acc_parent.appendChild(getScoreStatElement("Accuracy", score.accuracy * 100, score.accuracy == 1 ? 'perfect' : '', (value) => { return formatNumber(value, 2) + "%"; }));
+        score_stat_group_acc_parent.appendChild(getScoreStatElement("Max Combo", score.max_combo, score.max_combo == (beatmap.attributes?.max_combo ?? beatmap.max_combo) ? 'perfect' : '', (value) => { return `${value.toLocaleString()}x`; }));
+
+        const score_stat_group_detail_parent = document.createElement("div");
+        score_stat_group_detail_parent.classList.add("beatmap-score-top__stats", "beatmap-score-top__stats--wrappable");
+        switch (score.ruleset_id) {
+            case 0: //osu
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("300", score.statistics.great ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("100", score.statistics.ok ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("50", score.statistics.meh ?? 0, 'smaller',));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Miss", score.statistics.miss ?? 0, 'smaller'));
+                break;
+            case 1: //taiko
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Great", score.statistics.great ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Good", score.statistics.ok ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Miss", score.statistics.miss ?? 0, 'smaller'));
+                break;
+            case 2: //fruits
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Fruits", score.statistics.great ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Ticks", score.statistics.large_tick_hit ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("DRP Miss", score.statistics.small_tick_miss ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Miss", score.statistics.miss ?? 0, 'smaller'));
+                break;
+            case 3: //mania
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Max", score.statistics.perfect ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("300", score.statistics.great ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("200", score.statistics.good ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("100", score.statistics.ok ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("50", score.statistics.meh ?? 0, 'smaller'));
+                score_stat_group_detail_parent.appendChild(getScoreStatElement("Miss", score.statistics.miss ?? 0, 'smaller'));
+                break;
+        }
+        score_stat_group_detail_parent.appendChild(getScoreStatElement("pp", score.pp ? formatNumber(score.pp, 2) : '-', 'smaller'));
+        score_stat_group_detail_parent.appendChild(getScoreStatElement("Time", time_ago, 'smaller'));
+        score_stat_group_detail_parent.appendChild(getScoreStatElement("Mods", score.mods, 'mods', null, { ruleset: score.ruleset_id }));
+
+        score_card.appendChild(score_stat_group_score_parent);
+        score_card.appendChild(score_stat_group_acc_parent);
+        score_card.appendChild(score_stat_group_detail_parent);
+
+        user_card.appendChild(score_player);
+        beatmap_score_section.appendChild(score_card);
+
+        return score_element;
+    }
+
+    function getScoreStatElement(header, value, type = null, formatter = null, data = {}) {
+        const element = document.createElement("div");
+        element.classList.add("beatmap-score-top__stat");
+
+        const header_element = document.createElement("div");
+        header_element.classList.add("beatmap-score-top__stat-header");
+        //set padding-bottom to 0px
+        header_element.style.paddingBottom = "0px";
+        if (type !== 'smaller') {
+            header_element.classList.add("beatmap-score-top__stat-header--wider");
+        }
+        header_element.textContent = header;
+
+        const value_element = document.createElement("div");
+        if (type !== 'mods') {
+            value_element.textContent = formatter ? formatter(value) : value.toLocaleString();
+        } else {
+            console.log(data);
+            //only slightly more complex
+            let mod_set = MODS_DATA[MODE_SLUGS_ALT[data.ruleset]];
+            for (const mod of value) {
+                const mod_element = document.createElement("div");
+                //find the mod_data where Acronym == mod.acronym
+                const mod_data = mod_set.find(m => m.Acronym == mod.acronym);
+                if (!mod_data) {
+                    console.error("Mod data not found", mod.acronym);
+                    continue;
+                }
+                //class: mod mod--DT mod--type-DifficultyIncrease
+                mod_element.classList.add("mod", `mod--${mod_data.Acronym}`, `mod--type-${mod_data.Type}`);
+                mod_element.setAttribute("data-acronym", mod_data.Acronym);
+                value_element.appendChild(mod_element);
+            }
+        }
+        value_element.classList.add("beatmap-score-top__stat-value", `beatmap-score-top__stat-value${type ? `--${type}` : ""}`);
+        //set margin-top to 0px
+        value_element.style.marginTop = "0px";
+
+        element.appendChild(header_element);
+        element.appendChild(value_element);
+
+        return element;
+    }
+
+    function getUserScoreElementPlayer(score, user, time_ago) {
+        const user_box = document.createElement("div");
+        user_box.classList.add("beatmap-score-top__user-box");
+
+        const user_name_element = document.createElement("a");
+        user_name_element.classList.add("js-usercard", "beatmap-score-top__username", "u-hover");
+        user_name_element.href = `https://osu.ppy.sh/users/${score.user_id}`;
+        user_name_element.target = "_blank";
+        user_name_element.rel = "noopener noreferrer";
+        user_name_element.setAttribute("data-user-id", score.user_id);
+        user_name_element.textContent = user.username;
+        user_box.appendChild(user_name_element);
+
+        const date_played_element = document.createElement("div");
+        date_played_element.classList.add("beatmap-score-top__achieved", "u-hover");
+        date_played_element.textContent = "achieved " + time_ago;
+        const date_played_time_element = document.createElement("time");
+        date_played_time_element.classList.add("js-timeago");
+        date_played_time_element.setAttribute("datetime", score.date_achieved);
+        date_played_element.appendChild(date_played_time_element);
+        user_box.appendChild(date_played_element);
+
+        const flags_container_element = document.createElement("div");
+        flags_container_element.classList.add("beatmap-score-top__flags");
+        user_box.appendChild(flags_container_element);
+
+        const country_flag_element = document.createElement("a");
+        country_flag_element.classList.add("u-hover");
+        country_flag_element.href = `https://osu.ppy.sh/rankings/osu/performance?country=${user.country_code}`;
+        const country_flag_sub_element = document.createElement("span");
+        country_flag_sub_element.classList.add("flag-country", "flag-country--flat");
+        country_flag_sub_element.style.backgroundImage = `url(https://osu.ppy.sh/assets/images/flags/${countryCodeToUnicodeHex(user.country_code)}.svg)`;
+        country_flag_sub_element.setAttribute("original-title", user.country.name);
+        country_flag_sub_element.setAttribute("data-orig-title", user.country.name);
+        country_flag_element.appendChild(country_flag_sub_element);
+        flags_container_element.appendChild(country_flag_element);
+
+        if (user.team) {
+            const team_flag_element = document.createElement("a");
+            team_flag_element.classList.add("u-hover");
+            team_flag_element.href = `https://osu.ppy.sh/teams/${user.team.id}`;
+            const team_flag_sub_element = document.createElement("span");
+            team_flag_sub_element.classList.add("flag-team");
+            team_flag_sub_element.style.backgroundImage = `url(${user.team.flag_url})`;
+            team_flag_sub_element.setAttribute("original-title", user.team.name);
+            team_flag_sub_element.setAttribute("data-orig-title", user.team.name);
+            team_flag_element.appendChild(team_flag_sub_element);
+            flags_container_element.appendChild(team_flag_element);
+        }
+
+        return user_box;
+    }
+
+    function getUserScoreElementPosition(score, index) {
+        const score_position = document.createElement("div");
+        score_position.classList.add("beatmap-score-top__position-number");
+        score_position.textContent = `#${index + 1}`;
+
+        const score_rank = document.createElement("div");
+        score_rank.classList.add("score-rank", "score-rank--tiny", `score-rank--${score.rank}`);
+
+        const element = document.createElement("div");
+        element.classList.add("beatmap-score-top__position");
+
+        element.appendChild(score_position);
+        element.appendChild(score_rank);
+
+        return element;
+    }
+
+    async function getUserBeatmapScores(user_id, beatmap_id, ruleset) {
+        try {
+            const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {
+                method: "GET"
+            });
+
+            if (response.status === 200) {
+                const data = await response.json();
+                return data;
+            } else {
+                console.error("Error fetching beatmap scores", response.status, response.statusText);
+                return null;
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    async function getScoreData() {
+        try {
+            //find script with id "json-raw"
+            const script = document.getElementById("json-show");
+            if (!script) {
+                console.error("Score data not found");
+                return null;
+            }
+
+            let score = JSON.parse(script.innerHTML);
+            if (!score) {
+                console.error("Something went wrong parsing score data");
+                return null;
+            }
+
+            let attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+
+            return {
+                score: score,
+                attributes: attributes
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function countryCodeToUnicodeHex(countryCode) {
+        if (countryCode.length !== 2 || !/^[a-zA-Z]+$/.test(countryCode)) {
+            throw new Error("Input must be a 2-letter country code (e.g., 'JP', 'US')");
+        }
+
+        const c1 = countryCode.toUpperCase().charCodeAt(0);
+        const c2 = countryCode.toUpperCase().charCodeAt(1);
+
+        // Regional Indicator A (🇦) starts at 0x1F1E6 (U+1F1E6)
+        const hex1 = (0x1F1E6 + c1 - 'A'.charCodeAt(0)).toString(16);
+        const hex2 = (0x1F1E6 + c2 - 'A'.charCodeAt(0)).toString(16);
+
+        return `${hex1}-${hex2}`;
+    }
+
     async function runBeatmapPage() {
         if (!window.location.href.includes("/beatmapsets/")) {
             return;
         }
 
-        //cache original background urls
-        const orig_bg_cache = {};
+        let is_running = false;
         const runner = async () => {
+            if (is_running) return;
             if (!window.location.href.includes("/beatmapsets/")) {
                 return;
             }
+
+            //EXAMPLE URL: https://osu.ppy.sh/beatmapsets/1589026#osu/3245641
 
             const beatmapset_id = window.location.href.split("/")[4];
             if (!parseInt(beatmapset_id)) {
@@ -610,43 +1058,122 @@
                 return;
             }
 
+            //find the active mode
+            let active_mode = window.location.href.split("#")[1]?.split("/")[0];
+            if (!active_mode) {
+                active_mode = "osu";
+            }
+
+            await WaitForElement(".beatmap-basic-stats", 1000);
+            await WaitForElement(".beatmap-stats-table", 1000);
+
+            const beatmap_basic_stats = document.getElementsByClassName("beatmap-basic-stats")[0];
+            const beatmap_stats_table = document.getElementsByClassName("beatmap-stats-table")[0];
+
+            if (!beatmap_basic_stats || !beatmap_stats_table) {
+                console.error("Beatmap basic stats or stats table not found");
+                return;
+            }
+
+            removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
+            removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-aim");
+            removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-speed");
+
             //get beatmap data
-            const beatmap = await getBeatmapData(active_beatmap_id);
+            const beatmap_data = await getBeatmapData(active_beatmap_id, active_mode);
 
-            if (beatmap && !Array.isArray(beatmap)) {
-                //get beatmap-basic-stats div
-                const beatmap_basic_stats = document.getElementsByClassName("beatmap-basic-stats")[0];
+            if (beatmap_data && !Array.isArray(beatmap_data)) {
+                const beatmap_set = beatmap_data.beatmapset_data;
+                const beatmap = beatmap_data.beatmap_data;
+                const attributes = beatmap_data.attributes;
 
-                if (beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--spinner-count`)) {
-                    beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--spinner-count`).remove();
-                }
+                addBeatmapBasicStatsEntry(beatmap_basic_stats, IMAGE_ICON_SPINNER, 'spinner-count', "Spinner Count", beatmap.count_spinners);
 
-                const last_entry = beatmap_basic_stats.children[beatmap_basic_stats.children.length - 1];
-                const new_entry = last_entry.cloneNode(true);
-                //change "data-orig-title"
-                new_entry.setAttribute("title", "Spinner Count");
-
-                //remove data-has-qtip and aria-describedby
-                new_entry.removeAttribute("data-has-qtip");
-                new_entry.removeAttribute("aria-describedby");
-                new_entry.removeAttribute("data-orig-title");
-                //give it an unique id
-                new_entry.id = "beatmap-basic-stats__entry--spinner-count";
-                //change child span
-                new_entry.children[1].textContent = beatmap.spinners;
-
-                new_entry.children[0].style.backgroundImage = `url(${IMAGE_ICON_SPINNER})`;
-
-                if (!beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--spinner-count`)) {
-                    beatmap_basic_stats.appendChild(new_entry);
+                if (attributes) {
+                    if (active_mode === 'osu') {
+                        addBeatmapTableStatsEntry(beatmap_stats_table, 'diff-aim', "Stars Aim", formatNumber(attributes.aim_difficulty, 2), attributes.aim_difficulty * 10);
+                        addBeatmapTableStatsEntry(beatmap_stats_table, 'diff-speed', "Stars Speed", formatNumber(attributes.speed_difficulty, 2), attributes.speed_difficulty * 10);
+                    }
                 }
             }
+
+            is_running = false;
         }
 
         window.addEventListener('inspector_url_changed', (event) => {
             runner();
         })
         runner();
+    }
+
+    function removeBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title) {
+        if (beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--${internal_title}`)) {
+            beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--${internal_title}`).remove();
+        }
+    }
+
+    function removeBeatmapTableStatsEntry(beatmap_stats_table, internal_title) {
+        if (beatmap_stats_table.querySelector(`#beatmap-stats-table__entry--${internal_title}`)) {
+            beatmap_stats_table.querySelector(`#beatmap-stats-table__entry--${internal_title}`).remove();
+        }
+    }
+
+    function addBeatmapBasicStatsEntry(beatmap_basic_stats, icon_url, internal_title, title, value) {
+        removeBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title);
+
+        const last_entry = beatmap_basic_stats.children[beatmap_basic_stats.children.length - 1];
+        const new_entry = last_entry.cloneNode(true);
+        //change "data-orig-title"
+        new_entry.setAttribute("title", title);
+
+        //remove data-has-qtip and aria-describedby
+        new_entry.removeAttribute("data-has-qtip");
+        new_entry.removeAttribute("aria-describedby");
+        new_entry.removeAttribute("data-orig-title");
+        //give it an unique id
+        new_entry.id = `beatmap-basic-stats__entry--${internal_title}`;
+        //change child span
+        new_entry.children[1].textContent = value;
+
+        new_entry.children[0].style.backgroundImage = `url(${icon_url})`;
+
+        if (!beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--spinner-count`)) {
+            beatmap_basic_stats.appendChild(new_entry);
+        }
+    }
+
+    function addBeatmapTableStatsEntry(beatmap_stats_table, internal_title, title, value, fill = 0) {
+        removeBeatmapTableStatsEntry(beatmap_stats_table, internal_title);
+
+        //get tbody
+        const beatmap_stats_table_tbody = beatmap_stats_table.querySelector("tbody");
+
+        const last_entry = beatmap_stats_table_tbody.children[beatmap_stats_table_tbody.children.length - 1];
+
+        const new_entry = last_entry.cloneNode(true);
+        //set ID
+        new_entry.id = `beatmap-stats-table__entry--${internal_title}`;
+
+        //set content of th with class beatmap-stats-table__label
+        new_entry.querySelector(".beatmap-stats-table__label").textContent = title;
+
+        //set content of td with class beatmap-stats-table__value
+        new_entry.querySelector(".beatmap-stats-table__value").textContent = value;
+
+        //TODO; set bar value
+
+        //get the element with classes "bar bar--beatmap-stats"
+        const bar = new_entry.querySelector(".bar.bar--beatmap-stats");
+
+        //replace the full class with "bar bar--beatmap-stats bar bar--beatmap-stats--${internal_title}"
+        bar.className = `bar bar--beatmap-stats bar--beatmap-stats--${internal_title}`;
+
+        //set the style to --fill: ${fill}%
+        bar.style.setProperty("--fill", `${Math.min(100, Math.max(0, fill))}%`);
+
+        if (!beatmap_stats_table.querySelector(`#beatmap-stats-table__entry--${internal_title}`)) {
+            beatmap_stats_table_tbody.appendChild(new_entry);
+        }
     }
 
     //Add team tags
@@ -1118,7 +1645,7 @@
                 countryLink.appendChild(countryLinkSpan);
                 flagsSpan.appendChild(countryLink);
 
-                if(data.team) {
+                if (data.team) {
                     const teamLink = document.createElement("a");
                     teamLink.href = `https://osu.ppy.sh/teams/${data.team.id}`;
                     teamLink.classList.add("u-contents");
@@ -1328,7 +1855,7 @@
 
             if (change !== 0) {
                 if (format) {
-                    td.textContent = formatNumber(change);
+                    td.textContent = formatNumberAsSize(change);
                     td.title = change.toLocaleString();
                 } else {
                     td.textContent = Math.abs(change);
@@ -2301,27 +2828,90 @@
         return null;
     }
 
-    function formatNumber(number) {
-        //convert to K, M, B, etc
-        if (number < 1000) {
-            return number;
+    function formatNumberAsSize(number) {
+        if (number >= 1e12) {
+            return (number / 1e12).toFixed(1) + 'T';
+        } else if (number >= 1e9) {
+            return (number / 1e9).toFixed(1) + 'B';
+        } else if (number >= 1e6) {
+            return (number / 1e6).toFixed(1) + 'M';
+        } else if (number >= 1e3) {
+            return (number / 1e3).toFixed(1) + 'K';
+        } else {
+            return number.toString();
         }
-        const SI_SYMBOL = ["", "k", "M", "B", "T"];
-        const tier = Math.log10(number) / 3 | 0;
-        if (tier == 0) return number;
-        const suffix = SI_SYMBOL[tier];
-        const scale = Math.pow(10, tier * 3);
-        const scaled = number / scale;
-        return scaled.toFixed(1) + suffix;
     }
 
-    async function getBeatmapData(beatmap_id) {
-        let beatmap_data = null;
+    const defaultNumberFormatter = new Intl.NumberFormat(window.currentLocale);
+    function formatNumber(num, precision, options, locale) {
+        if (num === null || num === undefined || !num || isNaN(num) || num === Infinity || num === -Infinity) {
+            return num;
+        }
+
+        if (precision == null && options == null && locale == null) {
+            return defaultNumberFormatter.format(num);
+        }
+
+        options ??= {};
+
+        if (precision != null) {
+            options.minimumFractionDigits = precision;
+            options.maximumFractionDigits = precision;
+        }
+
+        return num.toLocaleString(locale ?? window.currentLocale, options);
+    }
+
+    async function getBeatmapData(beatmap_id, mode, mods = null) {
+        if (!beatmap_id || isNaN(beatmap_id)) {
+            return null;
+        }
+
         try {
-            const _beatmap_data = await fetch(`${SCORE_INSPECTOR_API}beatmaps/${beatmap_id}`);
-            beatmap_data = _beatmap_data.json();
-            return beatmap_data;
+            // const _beatmap_data = await fetch(`${SCORE_INSPECTOR_API}beatmaps/${beatmap_id}`);
+            // beatmap_data = _beatmap_data.json();
+            // return beatmap_data;
+            //find script with ID "json-beatmapset", this contains a JSON object of the whole beatmapset
+            const beatmapset_script = document.getElementById("json-beatmapset");
+            if (!beatmapset_script) {
+                return null;
+            }
+
+            const beatmapset_data = JSON.parse(beatmapset_script.innerHTML);
+            let beatmap_data = beatmapset_data?.beatmaps.find(b => b.id === Number(beatmap_id) && b.mode === mode);
+
+            if (!beatmap_data) {
+                beatmap_data = beatmapset_data?.converts.find(b => b.id === Number(beatmap_id) && b.mode === mode);
+            }
+
+            const attributes = await getBeatmapAttributes(beatmap_id, MODE_SLUGS_ALT.indexOf(mode), mods);
+
+            return {
+                beatmapset_data,
+                beatmap_data,
+                attributes: attributes,
+            };
         } catch (err) {
+            console.error(err);
+            return null;
+        }
+    }
+
+    async function getBeatmapAttributes(beatmap_id, ruleset_id, mods = null) {
+        try {
+            const attributes = await fetch(`${SCORE_INSPECTOR_API}extension/difficulty/${beatmap_id}/${ruleset_id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    mods
+                })
+            });
+
+            return (await attributes.json())?.attributes ?? null;
+        }
+        catch (err) {
             console.error(err);
             return null;
         }
