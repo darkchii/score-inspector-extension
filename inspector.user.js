@@ -10,6 +10,7 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        window.onurlchange
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0
 // @downloadURL  https://github.com/darkchii/score-inspector-extension/raw/main/inspector.user.js
@@ -710,7 +711,7 @@
                         const score_element = getUserScoreElement(score, score_data.score.user, ruleset_beatmaps[ruleset], index);
                         if (!score_element) continue;
 
-                        if(score_data.score.id == score.id) {
+                        if (score_data.score.id == score.id) {
                             //add a subtle gold glow to the score element
                             //not a class, use inline style
                             score_element.style.boxShadow = "0 0 10px 5px rgba(255, 215, 0, 0.5)";
@@ -876,7 +877,6 @@
         if (type !== 'mods') {
             value_element.textContent = formatter ? formatter(value) : value.toLocaleString();
         } else {
-            console.log(data);
             //only slightly more complex
             let mod_set = MODS_DATA[MODE_SLUGS_ALT[data.ruleset]];
             for (const mod of value) {
@@ -1100,9 +1100,6 @@
             is_running = false;
         }
 
-        window.addEventListener('inspector_url_changed', (event) => {
-            runner();
-        })
         runner();
     }
 
@@ -1221,9 +1218,7 @@
                         if (mutation.target.classList.contains("osu-layout__col-container")) {
                             _func();
                         }
-                    }
-
-                    if (window.location.href.includes("/beatmapsets")) {
+                    } else if (window.location.href.includes("/beatmapsets")) {
                         if (
                             mutation.target.classList.contains("beatmapset-scoreboard__main") ||
                             mutation.target.classList.contains("beatmap-scoreboard-table") ||
@@ -1233,28 +1228,24 @@
                             mutation.target.classList.contains("osuplus-table")) {
                             _func();
                         }
-                    }
-
-                    if (window.location.href.includes("/community/chat")) {
+                    } else if (window.location.href.includes("/community/chat")) {
                         if (mutation.target.classList.contains("chat-conversation")) {
                             _func();
                         }
-                    }
-
-                    if (window.location.href.includes("/home/friends")) {
+                    } else if (window.location.href.includes("/home/friends")) {
                         if (mutation.target.classList.contains("user-list__items")) {
                             _func();
                         }
                     }
-
+                    
                     if (mutation.target.classList.contains("qtip--user-card")) {
                         _func();
                     }
                 }
             }
         });
-
         observer.observe(document.body, { childList: true, subtree: true });
+
     }
 
     function modifyJsUserCards(teams) {
@@ -1400,6 +1391,8 @@
             return team_map;
         }
 
+        console.log(`Fetching ${user_id_array.length} users teams from remote...`);
+
         const teams = await fetch(`${SCORE_INSPECTOR_API}extension/users/teams`, {
             method: "POST",
             headers: {
@@ -1419,16 +1412,17 @@
                 team_map[team.user_id] = team;
                 USER_TEAM_CACHE[team.user_id] = team;
             });
+            
+            //check if we have any users that don't have teams
+            //remove users that don't have teams from the user_id_array
+            const no_team_users = user_id_array.filter(user_id => !teams.find(team => team.user_id == user_id));
+            if (no_team_users.length > 0) {
+                no_team_users.forEach(user_id => {
+                    SKIP_USER_TEAM_FETCH.push(user_id);
+                });
+            }
         }
 
-        //check if we have any users that don't have teams
-        //remove users that don't have teams from the user_id_array
-        const no_team_users = user_id_array.filter(user_id => !teams.find(team => team.user_id == user_id));
-        if (no_team_users.length > 0) {
-            no_team_users.forEach(user_id => {
-                SKIP_USER_TEAM_FETCH.push(user_id);
-            });
-        }
 
         return team_map;
     }
@@ -2953,12 +2947,11 @@
     //url observer
     //triggers events when the url changes
 
-    let currentUrl = window.location.href;
+    // let currentUrl = window.location.href;
 
-    setInterval(() => {
-        if (currentUrl !== window.location.href) {
-            currentUrl = window.location.href;
-            window.dispatchEvent(new Event('inspector_url_changed'));
-        }
-    }, 1000);
+    if (window.onurlchange === null) {
+        window.addEventListener('urlchange', function (e) {
+            run();
+        });
+    }
 })();
