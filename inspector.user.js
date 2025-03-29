@@ -461,7 +461,10 @@
         }
     }
 
+    let IS_RUNNER_ACTIVE = null;
     async function run() {
+        if (IS_RUNNER_ACTIVE) return;
+        IS_RUNNER_ACTIVE = true;
         GM_addStyle(`
             .toast {
                 position: fixed;
@@ -534,6 +537,8 @@
         await runScorePage();
         await runBeatmapPage();
         await runUsernames();
+
+        IS_RUNNER_ACTIVE = false;
     }
 
     function start() {
@@ -626,6 +631,44 @@
 
             const score_data = await getScoreData();
 
+            //Apply the attributes to the current score view
+            //get element class "score-stats__group score-stats__group--stats"
+            const score_stats_group = document.getElementsByClassName("score-stats__group score-stats__group--stats")[0];
+
+            const createStat = (name, value) => {
+                const stat = document.createElement("div");
+                stat.classList.add("score-stats__stat");
+
+                const stat_name = document.createElement("div");
+                stat_name.classList.add("score-stats__stat-row", "score-stats__stat-row--label");
+                stat_name.textContent = name;
+                stat.appendChild(stat_name);
+
+                const stat_value = document.createElement("div");
+                stat_value.classList.add("score-stats__stat-row");
+                stat_value.textContent = value;
+                stat.appendChild(stat_value);
+
+                return stat;
+            }
+            //delete if id "score-stats__group-row--extra-stats" exists
+            let score_stats_group_row = document.getElementById("score-stats__group-row--extra-stats");
+            if (score_stats_group_row) {
+                score_stats_group_row.remove();
+            }
+            score_stats_group_row = document.createElement("div");
+            score_stats_group_row.classList.add("score-stats__group-row");
+            score_stats_group_row.id = "score-stats__group-row--extra-stats";
+            score_stats_group.appendChild(score_stats_group_row);
+            score_stats_group_row.appendChild(createStat("Stars", `${formatNumber(score_data.attributes.star_rating, 2)} ★`));
+            switch (score_data.score.ruleset_id) {
+                case 0: //osu
+                    score_stats_group_row.appendChild(createStat("Aim", `${formatNumber(score_data.attributes.aim_difficulty ?? 0, 2)}★`));
+                    score_stats_group_row.appendChild(createStat("Speed", `${formatNumber(score_data.attributes.speed_difficulty ?? 0, 2)}★`));
+                    score_stats_group_row.appendChild(createStat("Flashlight", `${formatNumber(score_data.attributes.flashlight_difficulty ?? 0, 2)}★`));
+                    break;
+            }
+
             let ruleset_scores = {};
             let ruleset_beatmaps = {};
 
@@ -657,8 +700,14 @@
             const score_stats = document.getElementsByClassName("score-stats")[0];
 
             //insert an empty div after the score-stats element (this will contain all extra scores)
-            const extra_scores_div = document.createElement("div");
+            // const extra_scores_div = document.createElement("div");
+            let extra_scores_div = document.getElementById("score-stats__group-row--extra-scores");
+            if (extra_scores_div) {
+                extra_scores_div.remove();
+            }
+            extra_scores_div = document.createElement("div");
             extra_scores_div.classList.add("score-stats");
+            extra_scores_div.id = "score-stats__group-row--extra-scores";
             //force full width
             extra_scores_div.style.width = "100%";
 
@@ -975,6 +1024,7 @@
 
     async function getUserBeatmapScores(user_id, beatmap_id, ruleset) {
         try {
+            console.log(`Fetching beatmap scores for user ${user_id} on beatmap ${beatmap_id} with ruleset ${ruleset}`);
             const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {
                 method: "GET"
             });
@@ -1237,7 +1287,7 @@
                             _func();
                         }
                     }
-                    
+
                     if (mutation.target.classList.contains("qtip--user-card")) {
                         _func();
                     }
@@ -1412,7 +1462,7 @@
                 team_map[team.user_id] = team;
                 USER_TEAM_CACHE[team.user_id] = team;
             });
-            
+
             //check if we have any users that don't have teams
             //remove users that don't have teams from the user_id_array
             const no_team_users = user_id_array.filter(user_id => !teams.find(team => team.user_id == user_id));
