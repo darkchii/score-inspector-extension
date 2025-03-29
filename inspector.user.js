@@ -1374,7 +1374,32 @@
         return user_id;
     }
 
+    const USER_TEAM_CACHE = {};
+    const SKIP_USER_TEAM_FETCH = []; //these don't have teams, so we skip them for this session
     async function getTeams(user_id_array) {
+        if (!user_id_array || user_id_array.length === 0) {
+            return null;
+        }
+
+        //remove users that are in the SKIP_USER_TEAM_FETCH array
+        user_id_array = user_id_array.filter(user_id => !SKIP_USER_TEAM_FETCH.includes(user_id));
+
+        let team_map = {};
+
+        //check if we have the data in cache
+        user_id_array.forEach(user_id => {
+            if (USER_TEAM_CACHE[user_id]) {
+                team_map[user_id] = USER_TEAM_CACHE[user_id];
+            }
+        });
+
+        //filter out the user_ids that are already in the cache
+        user_id_array = user_id_array.filter(user_id => !USER_TEAM_CACHE[user_id]);
+
+        if (user_id_array.length === 0) {
+            return team_map;
+        }
+
         const teams = await fetch(`${SCORE_INSPECTOR_API}extension/users/teams`, {
             method: "POST",
             headers: {
@@ -1389,11 +1414,19 @@
             return null;
         });
 
-        let team_map = {};
-
         if (teams && Array.isArray(teams) && teams.length > 0) {
             teams.forEach(team => {
                 team_map[team.user_id] = team;
+                USER_TEAM_CACHE[team.user_id] = team;
+            });
+        }
+
+        //check if we have any users that don't have teams
+        //remove users that don't have teams from the user_id_array
+        const no_team_users = user_id_array.filter(user_id => !teams.find(team => team.user_id == user_id));
+        if (no_team_users.length > 0) {
+            no_team_users.forEach(user_id => {
+                SKIP_USER_TEAM_FETCH.push(user_id);
             });
         }
 
