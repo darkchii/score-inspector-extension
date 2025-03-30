@@ -2142,7 +2142,7 @@
         }
     }
 
-    function setNoAvailableStatsLabel(){
+    function setNoAvailableStatsLabel() {
         const headerTitle = document.getElementsByClassName("header-v4__title")[0];
         headerTitle.style.display = "block";
         headerTitle.innerHTML = `<span>player info</span><span style="margin-left: 5px;font-size:12px;color:gray;">No osu!alt statistics available for this user.</span>`;
@@ -2263,20 +2263,20 @@
 
             badgeArea.appendChild(a);
 
-            const pretty_date = new Date(badge.completion_date).toLocaleDateString("en-GB", {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
+            const date_object = new Date(badge.completion_date);
+            const pretty_date = new Date(date_object).toLocaleDateString();
 
             var img = document.createElement("img");
-            // img.src = MODE_COMPLETION_BADGES[badge.mode];
             img.src = `https://assets.ppy.sh/profile-badges/completionist_${MODE_SLUGS[badge.mode]}.png`;
             img.className = "profile-badges__badge";
             a.setAttribute("data-html-title", `
                     <div>${MODE_NAMES[badge.mode]} completionist (awarded ${pretty_date})</div>
                     <div>Scores: ${badge.scores.toLocaleString()}</div>
-                    <div class='profile-badges__date'>${pretty_date}</div>
+                    <div class='profile-badges__date'>${date_object.toLocaleDateString("en-US", {
+                        month: 'long',
+                        day: '2-digit',
+                        year: 'numeric'
+                    })}</div>
                 `);
 
             a.title = `${MODE_NAMES[badge.mode]} completionist (awarded ${pretty_date})`
