@@ -2274,7 +2274,7 @@
             img.src = `https://assets.ppy.sh/profile-badges/completionist_${MODE_SLUGS[badge.mode]}.png`;
             img.className = "profile-badges__badge";
             a.setAttribute("data-html-title", `
-                    <div>${MODE_NAMES[badge.mode]} completionist (awarded ${badge.completion_date})</div>
+                    <div>${MODE_NAMES[badge.mode]} completionist (awarded ${pretty_date})</div>
                     <div>Scores: ${badge.scores.toLocaleString()}</div>
                     <div class='profile-badges__date'>${pretty_date}</div>
                 `);
