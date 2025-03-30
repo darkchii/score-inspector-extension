@@ -1273,7 +1273,7 @@
                             mutation.target.classList.contains("beatmapset-scoreboard__main") ||
                             mutation.target.classList.contains("beatmap-scoreboard-table") ||
                             mutation.target.classList.contains("beatmap-scoreboard-table__body") ||
-                            mutation.target.classList.contains("beatmapsets__content") ||
+                            mutation.target.classList.contains("beatmapsets__items") ||
                             mutation.target.classList.contains("beatmapsets") ||
                             mutation.target.classList.contains("osuplus-table")) {
                             _func();
