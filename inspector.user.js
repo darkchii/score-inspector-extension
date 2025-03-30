@@ -729,6 +729,7 @@
                 extra_scores_div.appendChild(proxy_scoreboard_element);
                 for (const ruleset of MODE_SLUGS_ALT) {
                     if (!ruleset_scores[ruleset]) continue;
+                    const ruleset_id = MODE_SLUGS_ALT.indexOf(ruleset);
 
                     const proxy_scoreboard_item_element = document.createElement("div");
                     proxy_scoreboard_item_element.classList.add("beatmapset-scoreboard__main");
@@ -742,10 +743,7 @@
                     const ruleset_scores_header = document.createElement("h4");
                     ruleset_scores_header.classList.add("ruleset-scores-header");
 
-                    const ruleset_scores_header_icon = document.createElement("span");
-                    //give it "fal fa-extra-mode-${ruleset}" class
-                    ruleset_scores_header_icon.classList.add("fal", `fa-extra-mode-${ruleset}`);
-                    ruleset_scores_header.appendChild(ruleset_scores_header_icon);
+                    ruleset_scores_header.appendChild(getRulesetIconSpan(ruleset_id));
 
                     const ruleset_scores_header_text = document.createElement("span");
                     ruleset_scores_header_text.textContent = ` ${ruleset}`;
@@ -2119,7 +2117,7 @@
 
         if (data.team) {
             setOrCreateUserTeamTagElement(data.team);
-            setOrCreateTeamBannerElement(data.team);
+            // setOrCreateTeamBannerElement(data.team);
         }
 
         if (data.completion) {
@@ -2168,7 +2166,7 @@
         userTagElement.style.marginRight = "5px";
         userTagElement.style.fontWeight = "bold";
 
-        userTagParent.setAttribute("data-title", `<div>${team.name}</div>`);
+        userTagParent.setAttribute("data-html-title", `<div>${team.name}</div>`);
         userTagParent.setAttribute("title", "");
         userTagParent.href = `https://osu.ppy.sh/teams/${team.id}`;
         userTagParent.target = "_blank";
@@ -2461,6 +2459,8 @@
         }
         teamBanner = getBaseBannerElement("inspector_team_banner", team.header_url ?? IMAGE_DEFAULT_TEAM_BG, true);
 
+        let p_extra_info = `<p style="color: gray;">Members: ${team.members}</p>`;
+
         var rawHtml = `
             <div style="display: flex; align-items: center; height: 100%;">
                 <div style="display: flex; flex-direction: row; justify-content: center;">
@@ -2471,6 +2471,7 @@
                     </div>
                     <div style="display: flex; flex-direction: column; justify-content: center;">
                         <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://osu.ppy.sh/teams/${team.id}" target="_blank"><span id="inspector_user_clan_tag" style='color:${team.color}'></span> <span id="inspector_user_clan_name"></span></a></p>
+                        ${p_extra_info}
                     </div>
                 </div>
             </div>
@@ -2992,6 +2993,12 @@
             console.error(err);
             return null;
         }
+    }
+
+    function getRulesetIconSpan(ruleset_id) {
+        const ruleset_icon = document.createElement("span");
+        ruleset_icon.classList.add("fal", `fa-extra-mode-${MODE_SLUGS_ALT[ruleset_id]}`);
+        return ruleset_icon;
     }
 
     //url observer
