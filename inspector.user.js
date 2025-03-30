@@ -2132,13 +2132,20 @@
             if (!user_exists) {
                 if (mode === "osu") {
                     //we only show the popup for osu! mode, other modes are not supported period.
-                    popup("No osu!alt statistics available for this user.");
+                    // popup("No osu!alt statistics available for this user.");
+                    setNoAvailableStatsLabel();
                 }
                 //skip other checks as redundant
                 return;
             }
             setOrCreateStatisticsElements(data);
         }
+    }
+
+    function setNoAvailableStatsLabel(){
+        const headerTitle = document.getElementsByClassName("header-v4__title")[0];
+        headerTitle.style.display = "block";
+        headerTitle.innerHTML = `<span>player info</span><span style="margin-left: 5px;font-size:12px;color:gray;">No osu!alt statistics available for this user.</span>`;
     }
 
     function setOrCreateUserTeamTagElement(team) {
