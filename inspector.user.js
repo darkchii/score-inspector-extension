@@ -682,7 +682,7 @@
                     break;
             }
 
-            if (active_score.calculator?.pp) {
+            if (active_score.pp === null && active_score.calculator?.pp) {
                 const pp_stat = [...score_stats_group.getElementsByClassName("score-stats__stat-row score-stats__stat-row--label")].find((el) => el.textContent == "pp");
                 if (pp_stat) {
                     //remove it
