@@ -682,6 +682,7 @@
                     break;
             }
 
+            const score_stats_group_row_top = document.getElementsByClassName("score-stats__group-row")[0];
             if (active_score.pp === null && active_score.calculator?.pp) {
                 const pp_stat = [...score_stats_group.getElementsByClassName("score-stats__stat-row score-stats__stat-row--label")].find((el) => el.textContent == "pp");
                 if (pp_stat) {
@@ -689,9 +690,9 @@
                     pp_stat.parentElement.remove();
                 }
 
-                const score_stats_group_row = document.getElementsByClassName("score-stats__group-row")[0];
-                score_stats_group_row.appendChild(createStat("pp", `${formatNumber(active_score.calculator?.pp, 2)}`, true, 'Estimated performance'));
+                score_stats_group_row_top.appendChild(createStat("pp", `${formatNumber(active_score.calculator?.pp, 2)}`, true, 'Estimated performance'));
             }
+            score_stats_group_row_top.appendChild(createStat("pp if fc", `${formatNumber(active_score.calculator_fc?.pp, 2)}`, true, `Estimated performance at ${formatNumber(active_score.fc_statistics?.accuracy*100, 2)}% FC`));
 
             let ruleset_scores = {};
             let ruleset_beatmaps = {};
@@ -3040,16 +3041,16 @@
         });
     }
 
-    function getCalculator(score) {
+    function getCalculator(score, statistics = null) {
         switch (score.ruleset_id) {
             case 0:
-                return new OsuPerformanceCalculator(score);
+                return new OsuPerformanceCalculator(score, statistics);
             case 1:
-                return new TaikoPerformanceCalculator(score);
+                return new TaikoPerformanceCalculator(score, statistics);
             case 2:
-                return new CatchPerformanceCalculator(score);
+                return new CatchPerformanceCalculator(score, statistics);
             case 3:
-                return new ManiaPerformanceCalculator(score);
+                return new ManiaPerformanceCalculator(score, statistics);
             default:
                 throw new Error(`Unknown ruleset ID: ${score.ruleset_id}`);
         }
@@ -3067,9 +3068,17 @@
             this.preserve = obj.preserve;
             this.processed = obj.processed;
             this.ranked = obj.ranked;
-            this.maximum_statistics = obj.maximum_statistics;
+            this.maximum_statistics = {
+                ...obj.maximum_statistics,
+                max_combo: obj.beatmap.max_combo,
+                accuracy: 1,
+            };
             this.mods = new Mods(obj.mods);
-            this.statistics = obj.statistics;
+            this.statistics = {
+                ...obj.statistics,
+                max_combo: obj.max_combo,
+                accuracy: obj.accuracy,
+            };
             this.total_score_without_mods = obj.total_score_without_mods;
             this.beatmap_id = obj.beatmap_id;
             this.best_id = obj.best_id;
@@ -3097,7 +3106,109 @@
             this.user = new User(obj.user);
             this.beatmap = new Beatmap(obj.beatmap);
             this.difficulty = new BeatmapDifficulty(this.beatmap, this.mods, attributes);
+            this.fc_statistics = this.getFullcomboStatistics();
             this.calculator = getCalculator(this);
+            this.calculator_fc = getCalculator(this, this.fc_statistics);
+            this.calculator_ss = getCalculator(this, this.maximum_statistics);
+        }
+
+        getFullcomboStatistics() {
+            //convert statistics into a full combo statistics object
+            //(statistics_max is for SS scores, not full combo)
+            let stats = { ...this.statistics };
+
+            switch (this.ruleset_id) {
+                case 0:
+                    stats.great = (stats.great ?? 0) + (stats.miss ?? 0);
+                    stats.miss = 0;
+                    if (!Mods.hasMod(this.mods, "CL") || Mods.getSetting(this.mods, 'no_slider_head_accuracy') === false)
+                        stats.slider_tail_hit = this.beatmap.count_sliders;
+                    break;
+                case 1:
+                    stats.great = (stats.great ?? 0) + (stats.miss ?? 0);
+                    stats.miss = 0;
+            }
+            stats.accuracy = this.recalculateAccuracy(stats);
+
+            return stats;
+        }
+
+        recalculateAccuracy(statistics) {
+            let baseScore = 0;
+            Object.keys(statistics).forEach(key => {
+                if (this.affectsAccuracy(key)) {
+                    baseScore += statistics[key] * this.GetBaseScoreForResult(key);
+                }
+            });
+            let maxBaseScore = 0;
+            Object.keys(this.maximum_statistics).forEach(key => {
+                if (this.affectsAccuracy(key)) {
+                    maxBaseScore += this.maximum_statistics[key] * this.GetBaseScoreForResult(key);
+                }
+            });
+
+            return maxBaseScore === 0 ? 1 : baseScore / maxBaseScore;
+        }
+
+        GetBaseScoreForResult(result) {
+            switch (result) {
+                default:
+                    return 0;
+                case 'small_tick_hit':
+                    return 10;
+                case 'large_tick_hit':
+                    return 30;
+                case 'slider_tail_hit':
+                    return 150;
+                case 'meh':
+                    return 50;
+                case 'ok':
+                    return 100;
+                case 'good':
+                    return 200;
+                case 'great':
+                case 'perfect':
+                    return 300;
+                case 'small_bonus':
+                    return 10;
+                case 'large_bonus':
+                    return 50;
+            }
+        }
+
+        affectsAccuracy(result) {
+            switch (result) {
+                case "legacy_combo_increase":
+                    return false;
+                case "combo_break":
+                    return false;
+                default:
+                    return this.isScorable(result) && !this.isBonus(result);
+            }
+        }
+
+        isScorable(result) {
+            switch (result) {
+                case "legacy_combo_increase":
+                    return true;
+                case "combo_break":
+                    return true;
+                case "slider_tail_hit":
+                    return true;
+                default:
+                    return result !== "none" && result !== "ignore_miss";
+            }
+        }
+
+        isBonus(result) {
+            switch (result) {
+                case "small_bonus":
+                case "large_bonus":
+                    return true;
+
+                default:
+                    return false;
+            }
         }
     }
 
@@ -3208,20 +3319,9 @@
 
                 ar = original_ar * ar_multiplier;
 
-                if (ar <= 5)
-                    ar_ms = ar0_ms - ar_ms_step1 * ar;
-                else
-                    ar_ms = ar5_ms - ar_ms_step2 * (ar - 5);
-
-                ar_ms /= speed;
-
-                if (ar <= 5)
-                    ar = (ar0_ms - ar_ms) / ar_ms_step1;
-                else
-                    ar = 5 + (ar5_ms - ar_ms) / ar_ms_step2;
+                if (Mods.hasMod(mods, "HR")) ar = Math.min(10, ar);
 
                 this.approach_rate = ar;
-                this.base_approach_rate = original_ar;
             }
 
             if (!this.circle_size) {
@@ -3245,7 +3345,6 @@
                 if (cs > 10) cs = 10;
 
                 this.circle_size = cs;
-                this.base_circle_size = original_cs;
             }
 
             if (!this.overall_difficulty) {
@@ -3266,15 +3365,10 @@
                 original_od = Number(original_od);
 
                 od = original_od * od_multiplier;
-                odms = od0_ms - Math.ceil(od_ms_step * od);
-                odms = Math.min(od0_ms, Math.max(od10_ms, odms));
 
-                odms /= speed;
-
-                od = (od0_ms - odms) / od_ms_step;
+                if (Mods.hasMod(mods, "HR")) od = Math.min(10, od);
 
                 this.overall_difficulty = od;
-                this.base_overall_difficulty = original_od;
             }
 
             if (!this.drain_rate) {
@@ -3298,7 +3392,6 @@
                 if (hp > 10) hp = 10;
 
                 this.drain_rate = hp;
-                this.base_drain_rate = original_hp;
             }
         }
     }
@@ -3559,8 +3652,9 @@
     }
 
     class PerformanceCalculator {
-        constructor(score) {
+        constructor(score, statistics) {
             this.score = score;
+            this.statistics = statistics ?? score.statistics;
 
             this.clockRate = Mods.getClockRate(this.score.mods);
         }
@@ -3571,8 +3665,8 @@
     }
 
     class OsuPerformanceCalculator extends PerformanceCalculator {
-        constructor(score) {
-            super(score);
+        constructor(score, statistics) {
+            super(score, statistics);
 
             const PERFORMANCE_BASE_MULTIPLIER = 1.15;
 
@@ -3582,22 +3676,22 @@
                     this.usingClassicSliderAccuracy = true;
             }
 
-            this.effectiveMissCount = this.score.statistics.miss ?? 0;
-            this.totalImperfectHits = (this.score.statistics.meh ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.miss ?? 0);
-            this.countSliderEndsDropped = this.score.statistics.slider_tail_hit ? (this.score.beatmap.count_sliders - this.score.statistics.slider_tail_hit) : 0;
-            this.countSliderTickMiss = (this.score.statistics.large_tick_miss ?? 0);
-            this.totalHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0) + (this.score.statistics.miss ?? 0);
-            this.totalSuccessfulHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0);
+            this.effectiveMissCount = this.statistics.miss ?? 0;
+            this.totalImperfectHits = (this.statistics.meh ?? 0) + (this.statistics.ok ?? 0) + (this.statistics.miss ?? 0);
+            this.countSliderEndsDropped = this.statistics.slider_tail_hit ? (this.score.beatmap.count_sliders - this.statistics.slider_tail_hit) : 0;
+            this.countSliderTickMiss = (this.statistics.large_tick_miss ?? 0);
+            this.totalHits = (this.statistics.great ?? 0) + (this.statistics.ok ?? 0) + (this.statistics.meh ?? 0) + (this.statistics.miss ?? 0);
+            this.totalSuccessfulHits = (this.statistics.great ?? 0) + (this.statistics.ok ?? 0) + (this.statistics.meh ?? 0);
 
             this.clockRate = Mods.getClockRate(this.score.mods);
             this.hitWindows = new OsuHitWindows();
-            this.hitWindows.SetDifficulty(this.score.difficulty.base_overall_difficulty);
+            this.hitWindows.SetDifficulty(this.score.difficulty.overall_difficulty);
 
             this.greatHitWindow = this.hitWindows.WindowFor(HitResult.Great) / this.clockRate;
             this.okHitWindow = this.hitWindows.WindowFor(HitResult.Ok) / this.clockRate;
             this.mehHitWindow = this.hitWindows.WindowFor(HitResult.Meh) / this.clockRate;
 
-            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.base_approach_rate, 1800, 1200, 450) / this.clockRate;
+            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.approach_rate, 1800, 1200, 450) / this.clockRate;
 
             this.overall_difficulty = (80 - this.greatHitWindow) / 6;
             this.approach_rate = preempt > 1200 ? (1800 - preempt) / 120 : (1200 - preempt) / 150 + 5;
@@ -3605,18 +3699,18 @@
             if (this.score.beatmap.count_sliders > 0) {
                 if (this.usingClassicSliderAccuracy) {
                     let fullComboThreshold = this.score.beatmap.max_combo - 0.1 * this.score.beatmap.count_sliders;
-                    if (this.score.max_combo < fullComboThreshold)
-                        this.effectiveMissCount = fullComboThreshold / Math.max(1, this.score.max_combo);
+                    if (this.statistics.max_combo < fullComboThreshold)
+                        this.effectiveMissCount = fullComboThreshold / Math.max(1, this.statistics.max_combo);
                     this.effectiveMissCount = Math.min(this.effectiveMissCount, this.totalImperfectHits);
                 } else {
                     let fullComboThreshold = this.score.beatmap.max_combo - this.countSliderEndsDropped;
-                    if (this.score.max_combo < fullComboThreshold)
-                        this.effectiveMissCount = fullComboThreshold / Math.max(1, this.score.max_combo);
-                    this.effectiveMissCount = Math.min(this.effectiveMissCount, this.countSliderTickMiss + (this.score.statistics.miss ?? 0));
+                    if (this.statistics.max_combo < fullComboThreshold)
+                        this.effectiveMissCount = fullComboThreshold / Math.max(1, this.statistics.max_combo);
+                    this.effectiveMissCount = Math.min(this.effectiveMissCount, this.countSliderTickMiss + (this.statistics.miss ?? 0));
                 }
             }
 
-            this.effectiveMissCount = Math.max(this.score.statistics.miss ?? 0, this.effectiveMissCount);
+            this.effectiveMissCount = Math.max(this.statistics.miss ?? 0, this.effectiveMissCount);
             this.effectiveMissCount = Math.min(this.totalHits, this.effectiveMissCount);
 
             this.multiplier = PERFORMANCE_BASE_MULTIPLIER;
@@ -3636,8 +3730,8 @@
                 // this.effectiveMissCount = Math.min(this.effectiveMissCount + data.countOk * okMultiplier + data.countMeh * mehMultiplier, data.totalHits);
                 this.effectiveMissCount = Math.min(
                     this.effectiveMissCount +
-                    (this.score.statistics.ok ?? 0) * okMultiplier +
-                    (this.score.statistics.meh ?? 0) * mehMultiplier,
+                    (this.statistics.ok ?? 0) * okMultiplier +
+                    (this.statistics.meh ?? 0) * mehMultiplier,
                     this.totalHits
                 )
             }
@@ -3683,7 +3777,7 @@
 
                 if (this.usingClassicSliderAccuracy) {
                     let maximumPossibleDroppedSliders = this.totalImperfectHits;
-                    estimateImproperlyFollowedDifficultSliders = clamp(Math.min(maximumPossibleDroppedSliders, this.score.beatmap.max_combo - this.score.max_combo), 0, aim_difficult_slider_count);
+                    estimateImproperlyFollowedDifficultSliders = clamp(Math.min(maximumPossibleDroppedSliders, this.score.beatmap.max_combo - this.statistics.max_combo), 0, aim_difficult_slider_count);
                 } else {
                     estimateImproperlyFollowedDifficultSliders = clamp(this.countSliderEndsDropped + this.countSliderTickMiss, 0, aim_difficult_slider_count);
                 }
@@ -3715,11 +3809,11 @@
             aimValue *= 1.0 + approachRateFactor * lengthBonus;
 
             if (Mods.hasMod(this.score.mods, "BL"))
-                aimValue *= 1.3 + (this.totalHits * (0.0016 / (1 + 2 * this.effectiveMissCount)) * Math.pow(this.score.accuracy, 16)) * (1 - 0.003 * this.score.difficulty.drain_rate * this.score.difficulty.drain_rate);
+                aimValue *= 1.3 + (this.totalHits * (0.0016 / (1 + 2 * this.effectiveMissCount)) * Math.pow(this.statistics.accuracy, 16)) * (1 - 0.003 * this.score.difficulty.drain_rate * this.score.difficulty.drain_rate);
             else if (Mods.hasMod(this.score.mods, "HD") || Mods.hasMod(this.score.mods, "TC"))
                 aimValue *= 1.0 + 0.04 * (12.0 - this.approach_rate);
 
-            aimValue *= this.score.accuracy;
+            aimValue *= this.statistics.accuracy;
             aimValue *= 0.98 + Math.pow(this.overall_difficulty, 2) / 2500;
 
             return aimValue;
@@ -3753,14 +3847,14 @@
             speedValue *= speedHighDeviationMultiplier;
 
             let relevantTotalDiff = this.totalHits - this.score.difficulty.speed_note_count;
-            let relevantCountGreat = Math.max(0.0, (this.score.statistics.great ?? 0) - relevantTotalDiff);
-            let relevantCountOk = Math.max(0.0, (this.score.statistics.ok ?? 0) - Math.max(0.0, relevantTotalDiff - (this.score.statistics.great ?? 0)));
-            let relevantCountMeh = Math.max(0.0, (this.score.statistics.meh ?? 0) - Math.max(0.0, relevantTotalDiff - (this.score.statistics.great ?? 0) - (this.score.statistics.ok ?? 0)));
+            let relevantCountGreat = Math.max(0.0, (this.statistics.great ?? 0) - relevantTotalDiff);
+            let relevantCountOk = Math.max(0.0, (this.statistics.ok ?? 0) - Math.max(0.0, relevantTotalDiff - (this.statistics.great ?? 0)));
+            let relevantCountMeh = Math.max(0.0, (this.statistics.meh ?? 0) - Math.max(0.0, relevantTotalDiff - (this.statistics.great ?? 0) - (this.statistics.ok ?? 0)));
             let relevantAccuracy = this.score.difficulty.speed_note_count === 0.0 ? 0.0 : (
                 (relevantCountGreat * 6.0 + relevantCountOk * 2.0 + relevantCountMeh * 0.5) / (this.score.difficulty.speed_note_count * 6.0)
             );
 
-            speedValue *= (0.95 + Math.pow(this.overall_difficulty, 2) / 750.0) * Math.pow((this.score.accuracy + relevantAccuracy) / 2.0, (14.5 - this.overall_difficulty) * 0.5);
+            speedValue *= (0.95 + Math.pow(this.overall_difficulty, 2) / 750.0) * Math.pow((this.statistics.accuracy + relevantAccuracy) / 2.0, (14.5 - this.overall_difficulty) * 0.5);
             return speedValue;
         }
 
@@ -3775,7 +3869,7 @@
                 amountHitObjectsWithAccuracy += this.score.beatmap.count_sliders;
 
             if (amountHitObjectsWithAccuracy > 0)
-                betterAccuracyPercentage = (((this.score.statistics.great ?? 0) - Math.max(this.totalHits - amountHitObjectsWithAccuracy, 0)) * 6 + (this.score.statistics.ok ?? 0) * 2 + (this.score.statistics.meh ?? 0)) / (amountHitObjectsWithAccuracy * 6);
+                betterAccuracyPercentage = (((this.statistics.great ?? 0) - Math.max(this.totalHits - amountHitObjectsWithAccuracy, 0)) * 6 + (this.statistics.ok ?? 0) * 2 + (this.statistics.meh ?? 0)) / (amountHitObjectsWithAccuracy * 6);
             else
                 betterAccuracyPercentage = 0;
 
@@ -3810,14 +3904,14 @@
 
             flashlightValue *= 0.7 + 0.1 * Math.min(1.0, this.totalHits / 200) + (this.totalHits > 200 ? 0.2 * Math.min(1.0, (this.totalHits - 200) / 200) : 0.0);
 
-            flashlightValue *= 0.5 + this.score.accuracy / 2.0;
+            flashlightValue *= 0.5 + this.statistics.accuracy / 2.0;
             flashlightValue *= 0.98 + Math.pow(this.overall_difficulty, 2) / 2500;
 
             return flashlightValue;
         }
 
         getComboScalingFactor() {
-            return this.score.beatmap.max_combo <= 0 ? 1 : Math.min(1, Math.pow(this.score.max_combo, 0.8) / Math.pow(this.score.beatmap.max_combo, 0.8));
+            return this.score.beatmap.max_combo <= 0 ? 1 : Math.min(1, Math.pow(this.statistics.max_combo, 0.8) / Math.pow(this.score.beatmap.max_combo, 0.8));
         }
 
         calculateMissPenalty(missCount, difficultStrainCount) {
@@ -3855,9 +3949,9 @@
             let speedNoteCount = this.score.difficulty.speed_note_count ?? 0;
             speedNoteCount += (this.totalHits - this.score.difficulty.speed_note_count) * 0.1;
 
-            let relevantCountMiss = Math.min(this.score.statistics.miss ?? 0, speedNoteCount);
-            let relevantCountMeh = Math.min(this.score.statistics.meh ?? 0, speedNoteCount - relevantCountMiss);
-            let relevantCountOk = Math.min(this.score.statistics.ok ?? 0, speedNoteCount - relevantCountMiss - relevantCountMeh);
+            let relevantCountMiss = Math.min(this.statistics.miss ?? 0, speedNoteCount);
+            let relevantCountMeh = Math.min(this.statistics.meh ?? 0, speedNoteCount - relevantCountMiss);
+            let relevantCountOk = Math.min(this.statistics.ok ?? 0, speedNoteCount - relevantCountMiss - relevantCountMeh);
             let relevantCountGreat = Math.max(0, speedNoteCount - relevantCountMiss - relevantCountMeh - relevantCountOk);
 
             return this.calculateDeviation(relevantCountGreat, relevantCountOk, relevantCountMeh, relevantCountMiss);
@@ -3894,18 +3988,18 @@
     }
 
     class TaikoPerformanceCalculator extends PerformanceCalculator {
-        constructor(score) {
-            super(score);
+        constructor(score, statistics) {
+            super(score, statistics);
 
-            this.countGreat = this.score.statistics.great ?? 0;
-            this.countOk = this.score.statistics.ok ?? 0;
-            this.countMeh = this.score.statistics.meh ?? 0;
-            this.countMiss = this.score.statistics.miss ?? 0;
+            this.countGreat = this.statistics.great ?? 0;
+            this.countOk = this.statistics.ok ?? 0;
+            this.countMeh = this.statistics.meh ?? 0;
+            this.countMiss = this.statistics.miss ?? 0;
             this.totalHits = this.countGreat + this.countOk + this.countMeh + this.countMiss;
             this.totalSuccessfulHits = this.countGreat + this.countOk + this.countMeh;
 
             this.hitWindows = new TaikoHitWindows();
-            this.hitWindows.SetDifficulty(this.score.difficulty.base_overall_difficulty);
+            this.hitWindows.SetDifficulty(this.score.difficulty.overall_difficulty);
 
             this.greatHitWindow = this.hitWindows.WindowFor(HitResult.Great) / this.clockRate;
 
@@ -3987,14 +4081,14 @@
     }
 
     class CatchPerformanceCalculator extends PerformanceCalculator {
-        constructor(score) {
-            super(score);
+        constructor(score, statistics) {
+            super(score, statistics);
 
-            this.num300 = this.score.statistics.great ?? 0;
-            this.num100 = this.score.statistics.large_tick_hit ?? 0;
-            this.num50 = this.score.statistics.small_tick_hit ?? 0;
-            this.numKatu = this.score.statistics.small_tick_miss ?? 0;
-            this.numMiss = (this.score.statistics.miss ?? 0) + (this.score.statistics.large_tick_miss ?? 0);
+            this.num300 = this.statistics.great ?? 0;
+            this.num100 = this.statistics.large_tick_hit ?? 0;
+            this.num50 = this.statistics.small_tick_hit ?? 0;
+            this.numKatu = this.statistics.small_tick_miss ?? 0;
+            this.numMiss = (this.statistics.miss ?? 0) + (this.statistics.large_tick_miss ?? 0);
 
             let value = Math.pow(5.0 * Math.max(1.0, this.score.difficulty.star_rating / 0.0049) - 4.0, 2.0) / 100000.0;
 
@@ -4006,36 +4100,36 @@
 
             value *= Math.pow(0.97, this.numMiss);
 
-            if(this.score.difficulty.max_combo > 0)
-                value *= Math.min(Math.pow(this.score.max_combo, 0.8) / Math.pow(this.score.difficulty.max_combo, 0.8), 1.0);
+            if (this.score.difficulty.max_combo > 0)
+                value *= Math.min(Math.pow(this.statistics.max_combo, 0.8) / Math.pow(this.score.difficulty.max_combo, 0.8), 1.0);
 
-            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.base_approach_rate, 1800, 1200, 450) / this.clockRate;
+            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.approach_rate, 1800, 1200, 450) / this.clockRate;
 
             let approach_rate = preempt > 1200.0 ? -(preempt - 1800.0) / 120.0 : -(preempt - 1200.0) / 150.0 + 5.0;
 
             let approachRateFactor = 1.0;
-            if(approach_rate > 9.0)
+            if (approach_rate > 9.0)
                 approachRateFactor += 0.1 * (approach_rate - 9.0);
-            if(approach_rate > 10.0)
+            if (approach_rate > 10.0)
                 approachRateFactor += 0.1 * (approach_rate - 10.0);
             else if (approach_rate < 8.0)
                 approachRateFactor += 0.025 * (8.0 - approach_rate);
 
             value *= approachRateFactor;
 
-            if(Mods.hasMod(this.score.mods, "HD")){
-                if(approach_rate <= 10.0)
+            if (Mods.hasMod(this.score.mods, "HD")) {
+                if (approach_rate <= 10.0)
                     value *= 1.05 + 0.075 * (10.0 - approach_rate);
-                else if(approach_rate > 10.0)
-                    value *= 1.01 + 0.04*(11.0-Math.min(11.0, approach_rate));
+                else if (approach_rate > 10.0)
+                    value *= 1.01 + 0.04 * (11.0 - Math.min(11.0, approach_rate));
             }
 
-            if(Mods.hasMod(this.score.mods, "FL"))
+            if (Mods.hasMod(this.score.mods, "FL"))
                 value *= 1.35 * lengthBonus;
 
             value *= Math.pow(this.accuracy(), 5.5);
 
-            if(Mods.hasMod(this.score.mods, "NF"))
+            if (Mods.hasMod(this.score.mods, "NF"))
                 value *= Math.max(0.9, 1.0 - 0.02 * this.numMiss);
 
             this.pp = value;
@@ -4056,6 +4150,47 @@
 
         totalComboHits() {
             return this.numMiss + this.num100 + this.num300;
+        }
+    }
+
+    class ManiaPerformanceCalculator extends PerformanceCalculator {
+        constructor(score, statistics) {
+            super(score, statistics);
+
+            this.countPerfect = this.statistics.perfect ?? 0;
+            this.countGreat = this.statistics.great ?? 0;
+            this.countGood = this.statistics.good ?? 0;
+            this.countOk = this.statistics.ok ?? 0;
+            this.countMeh = this.statistics.meh ?? 0;
+            this.countMiss = this.statistics.miss ?? 0;
+            this.totalHits = this.countPerfect + this.countGreat + this.countGood + this.countOk + this.countMeh + this.countMiss;
+            this.scoreAccuracy = this.calculateCustomAccuracy();
+
+            let multiplier = 1.0;
+
+            if (Mods.hasMod(this.score.mods, "NF"))
+                multiplier *= 0.75;
+            if (Mods.hasMod(this.score.mods, "EZ"))
+                multiplier *= 0.5;
+
+            let difficultyValue = this.computeDifficultyValue();
+            let totalValue = difficultyValue * multiplier;
+            this.pp = totalValue;
+        }
+
+        computeDifficultyValue() {
+            let difficultyValue = 8.0 * Math.pow(Math.max(this.score.difficulty.star_rating - 0.15, 0.05), 2.2)
+                * Math.max(0, 5 * this.scoreAccuracy - 4)
+                * (1 + 0.1 * Math.min(1, this.totalHits / 1500.0));
+
+            return difficultyValue;
+        }
+
+        calculateCustomAccuracy() {
+            if (this.totalHits === 0)
+                return 0;
+
+            return (this.countPerfect * 320 + this.countGreat * 300 + this.countGood * 200 + this.countOk * 100 + this.countMeh * 50) / (this.totalHits * 320);
         }
     }
 
