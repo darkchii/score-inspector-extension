@@ -692,7 +692,7 @@
 
                 score_stats_group_row_top.appendChild(createStat("pp", `${formatNumber(active_score.calculator?.pp, 2)}`, true, 'Estimated performance'));
             }
-            score_stats_group_row_top.appendChild(createStat("pp if fc", `${formatNumber(active_score.calculator_fc?.pp, 2)}`, true, `Estimated performance at ${formatNumber(active_score.fc_statistics?.accuracy*100, 2)}% FC`));
+            score_stats_group_row_top.appendChild(createStat("pp if fc", `${formatNumber(active_score.calculator_fc?.pp, 2)}`, true, `Estimated performance at ${formatNumber(active_score.fc_statistics?.accuracy * 100, 2)}% FC`));
 
             let ruleset_scores = {};
             let ruleset_beatmaps = {};
@@ -951,7 +951,7 @@
         } else {
             //only slightly more complex
             let mod_set = MODS_DATA[MODE_SLUGS_ALT[data.ruleset]];
-            for (const mod of value) {
+            for (const mod of value?.data) {
                 const mod_element = document.createElement("div");
                 //find the mod_data where Acronym == mod.acronym
                 const mod_data = mod_set.find(m => m.Acronym == mod.acronym);
@@ -1054,7 +1054,26 @@
 
             if (response.status === 200) {
                 const data = await response.json();
-                return data;
+                let attr_cache = {};
+                let _data = data.scores.map(async (score) => {
+                    //get the attributes for the score remotely
+                    // let attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+                    let attributes = null;
+                    let mod_str = JSON.stringify(score.mods.data);
+                    let mod_str_hash = btoa(mod_str);
+                    if (attr_cache[mod_str_hash]) {
+                        attributes = attr_cache[mod_str_hash];
+                    } else {
+                        attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+                        attr_cache[mod_str_hash] = attributes;
+                    }
+                    return new Score(score, attributes, data.beatmap);
+                });
+                return {
+                    scores: await Promise.all(_data),
+                    beatmap: data.beatmap,
+                    attributes: data.attributes
+                };
             } else {
                 console.error("Error fetching beatmap scores", response.status, response.statusText);
                 return null;
@@ -1107,14 +1126,16 @@
             return;
         }
 
+        let last_mode = null;
         let is_running = false;
         const runner = async () => {
             if (is_running) return;
             if (!window.location.href.includes("/beatmapsets/")) {
+                is_running = false;
                 return;
             }
 
-            //EXAMPLE URL: https://osu.ppy.sh/beatmapsets/1589026#osu/3245641
+            await new Promise(r => setTimeout(r, 250));
 
             const beatmapset_id = window.location.href.split("/")[4];
             if (!parseInt(beatmapset_id)) {
@@ -1133,21 +1154,24 @@
             if (!active_mode) {
                 active_mode = "osu";
             }
-
+            
             await WaitForElement(".beatmap-basic-stats", 1000);
             await WaitForElement(".beatmap-stats-table", 1000);
-
+            
             const beatmap_basic_stats = document.getElementsByClassName("beatmap-basic-stats")[0];
             const beatmap_stats_table = document.getElementsByClassName("beatmap-stats-table")[0];
-
+            
             if (!beatmap_basic_stats || !beatmap_stats_table) {
                 console.error("Beatmap basic stats or stats table not found");
                 return;
             }
-
-            removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
-            removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-aim");
-            removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-speed");
+            
+            if (active_mode !== last_mode) {
+                removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
+                removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-aim");
+                removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-speed");
+            }
+            last_mode = active_mode;
 
             //get beatmap data
             const beatmap_data = await getBeatmapData(active_beatmap_id, active_mode);
@@ -1165,12 +1189,31 @@
                         addBeatmapTableStatsEntry(beatmap_stats_table, 'diff-speed', "Stars Speed", formatNumber(attributes.speed_difficulty, 2), attributes.speed_difficulty * 10);
                     }
                 }
+            } else {
+                removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
+                removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-aim");
+                removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-speed");
             }
 
             is_running = false;
         }
-
         runner();
+
+        await new Promise(r => setTimeout(r, 250));
+        const beatmapset_beatmap_pickers = document.getElementsByClassName("beatmapset-beatmap-picker__beatmap");
+        const mode_pickers = document.getElementsByClassName("game-mode-link");
+        //merge the two arrays
+        const pickers = [...beatmapset_beatmap_pickers, ...mode_pickers];
+        console.log(beatmapset_beatmap_pickers);
+        if (pickers && pickers.length > 0) {
+            //add onclick event to each element to execute the runner function
+            for (const element of pickers) {
+                element.addEventListener("click", () => {
+                    runner();
+                });
+            }
+        }
+
     }
 
     function removeBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title) {
@@ -1185,8 +1228,19 @@
         }
     }
 
+    function updateBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title, value) {
+        const entry = beatmap_basic_stats.querySelector(`#beatmap-basic-stats__entry--${internal_title}`);
+        if (entry) {
+            entry.children[1].textContent = value;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     function addBeatmapBasicStatsEntry(beatmap_basic_stats, icon_url, internal_title, title, value) {
-        removeBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title);
+        // removeBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title);
+        if (updateBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title, value)) return;
 
         const last_entry = beatmap_basic_stats.children[beatmap_basic_stats.children.length - 1];
         const new_entry = last_entry.cloneNode(true);
@@ -1209,8 +1263,24 @@
         }
     }
 
+    function updateBeatmapTableStatsEntry(beatmap_stats_table, internal_title, value, fill = 0) {
+        const entry = beatmap_stats_table.querySelector(`#beatmap-stats-table__entry--${internal_title}`);
+        if (entry) {
+            entry.querySelector(".beatmap-stats-table__value").textContent = value;
+            //get the element with classes "bar bar--beatmap-stats"
+            const bar = entry.querySelector(".bar.bar--beatmap-stats");
+            //replace the full class with "bar bar--beatmap-stats bar bar--beatmap-stats--${internal_title}"
+            bar.className = `bar bar--beatmap-stats bar--beatmap-stats--${internal_title}`;
+            //set the style to --fill: ${fill}%
+            bar.style.setProperty("--fill", `${Math.min(100, Math.max(0, fill))}%`);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     function addBeatmapTableStatsEntry(beatmap_stats_table, internal_title, title, value, fill = 0) {
-        removeBeatmapTableStatsEntry(beatmap_stats_table, internal_title);
+        if (updateBeatmapTableStatsEntry(beatmap_stats_table, internal_title, value, fill)) return;
 
         //get tbody
         const beatmap_stats_table_tbody = beatmap_stats_table.querySelector("tbody");
@@ -3036,6 +3106,7 @@
     // let currentUrl = window.location.href;
 
     if (window.onurlchange === null) {
+        console.log("Registering URL change observer");
         window.addEventListener('urlchange', function (e) {
             run();
         });
@@ -3063,7 +3134,10 @@
 
     //Models and classes
     class Score {
-        constructor(obj, attributes) {
+        constructor(obj, attributes, beatmap = null) {
+            if (!obj.beatmap && beatmap)
+                obj.beatmap = beatmap;
+
             this.classic_total_score = obj.classic_total_score;
             this.preserve = obj.preserve;
             this.processed = obj.processed;
@@ -3103,13 +3177,27 @@
             this.total_score = obj.total_score;
             this.replay = obj.replay;
             this.rank_global = obj.rank_global;
-            this.user = new User(obj.user);
-            this.beatmap = new Beatmap(obj.beatmap);
-            this.difficulty = new BeatmapDifficulty(this.beatmap, this.mods, attributes);
+            if (obj.user)
+                this.user = new User(obj.user);
+            if (obj.beatmap) {
+                this.beatmap = new Beatmap(obj.beatmap);
+                this.difficulty = new BeatmapDifficulty(this.beatmap, this.mods, attributes);
+            }
             this.fc_statistics = this.getFullcomboStatistics();
             this.calculator = getCalculator(this);
             this.calculator_fc = getCalculator(this, this.fc_statistics);
             this.calculator_ss = getCalculator(this, this.maximum_statistics);
+        }
+
+        ApplyUser(user) {
+            //if user is null, do nothing
+            if (!user) return;
+            //check if user is already from class User
+            if (user instanceof User) {
+                this.user = user;
+            } else {
+                this.user = new User(user);
+            }
         }
 
         getFullcomboStatistics() {
