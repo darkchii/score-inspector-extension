@@ -629,13 +629,14 @@
 
             await modsDataMakeSure();
 
-            const score_data = await getScoreData();
+            const active_score = await getScoreData();
+            console.log(active_score);
 
             //Apply the attributes to the current score view
             //get element class "score-stats__group score-stats__group--stats"
             const score_stats_group = document.getElementsByClassName("score-stats__group score-stats__group--stats")[0];
 
-            const createStat = (name, value) => {
+            const createStat = (name, value, light = false, title = null) => {
                 const stat = document.createElement("div");
                 stat.classList.add("score-stats__stat");
 
@@ -647,6 +648,18 @@
                 const stat_value = document.createElement("div");
                 stat_value.classList.add("score-stats__stat-row");
                 stat_value.textContent = value;
+                if(light){
+                    //italics
+                    stat_value.style.fontStyle = "italic";
+                    stat_value.style.color = "lightgray";
+                }
+
+                if(title){
+                    //tooltip
+                    stat_value.setAttribute("title", title);
+                    stat_value.setAttribute("data-tooltip", title);
+                    stat_value.setAttribute("data-orig-title", title);
+                }
                 stat.appendChild(stat_value);
 
                 return stat;
@@ -660,13 +673,24 @@
             score_stats_group_row.classList.add("score-stats__group-row");
             score_stats_group_row.id = "score-stats__group-row--extra-stats";
             score_stats_group.appendChild(score_stats_group_row);
-            score_stats_group_row.appendChild(createStat("Stars", `${formatNumber(score_data.attributes.star_rating, 2)} ★`));
-            switch (score_data.score.ruleset_id) {
+            score_stats_group_row.appendChild(createStat("Stars", `${formatNumber(active_score.difficulty.star_rating, 2)} ★`));
+            switch (active_score.ruleset_id) {
                 case 0: //osu
-                    score_stats_group_row.appendChild(createStat("Aim", `${formatNumber(score_data.attributes.aim_difficulty ?? 0, 2)}★`));
-                    score_stats_group_row.appendChild(createStat("Speed", `${formatNumber(score_data.attributes.speed_difficulty ?? 0, 2)}★`));
-                    score_stats_group_row.appendChild(createStat("Flashlight", `${formatNumber(score_data.attributes.flashlight_difficulty ?? 0, 2)}★`));
+                    score_stats_group_row.appendChild(createStat("Aim", `${formatNumber(active_score.difficulty.aim_difficulty ?? 0, 2)}★`));
+                    score_stats_group_row.appendChild(createStat("Speed", `${formatNumber(active_score.difficulty.speed_difficulty ?? 0, 2)}★`));
+                    score_stats_group_row.appendChild(createStat("Flashlight", `${formatNumber(active_score.difficulty.flashlight_difficulty ?? 0, 2)}★`));
                     break;
+            }
+
+            if (active_score.calculator?.pp) {
+                const pp_stat = [...score_stats_group.getElementsByClassName("score-stats__stat-row score-stats__stat-row--label")].find((el) => el.textContent == "pp");
+                if (pp_stat) {
+                    //remove it
+                    pp_stat.parentElement.remove();
+                }
+
+                const score_stats_group_row = document.getElementsByClassName("score-stats__group-row")[0];
+                score_stats_group_row.appendChild(createStat("pp", `${formatNumber(active_score.calculator?.pp, 2)}pp`, true, 'Estimated performance'));
             }
 
             let ruleset_scores = {};
@@ -674,7 +698,7 @@
 
             //get scores for all rulesets
             for (const ruleset of MODE_SLUGS_ALT) {
-                const data = await getUserBeatmapScores(score_data.score.user_id, score_data.score.beatmap_id, ruleset);
+                const data = await getUserBeatmapScores(active_score.user_id, active_score.beatmap_id, ruleset);
                 const _scores = data.scores;
                 const _beatmap = data.beatmap;
                 const _attributes = data.attributes;
@@ -755,10 +779,10 @@
                     // const score_element = getUserScoreElement(scores[ruleset][0]);
                     // for (const [index, score] of scores[ruleset]) {
                     for (const [index, score] of ruleset_scores[ruleset].entries()) {
-                        const score_element = getUserScoreElement(score, score_data.score.user, ruleset_beatmaps[ruleset], index);
+                        const score_element = getUserScoreElement(score, active_score.user, ruleset_beatmaps[ruleset], index);
                         if (!score_element) continue;
 
-                        if (score_data.score.id == score.id) {
+                        if (active_score.id == score.id) {
                             //add a subtle gold glow to the score element
                             //not a class, use inline style
                             score_element.style.boxShadow = "0 0 10px 5px rgba(255, 215, 0, 0.5)";
@@ -1056,10 +1080,7 @@
 
             let attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
 
-            return {
-                score: score,
-                attributes: attributes
-            }
+            return new Score(score, attributes);
         } catch (err) {
             console.error(err);
         }
@@ -2273,10 +2294,10 @@
                     <div>${MODE_NAMES[badge.mode]} completionist (awarded ${pretty_date})</div>
                     <div>Scores: ${badge.scores.toLocaleString()}</div>
                     <div class='profile-badges__date'>${date_object.toLocaleDateString("en-US", {
-                        month: 'long',
-                        day: '2-digit',
-                        year: 'numeric'
-                    })}</div>
+                month: 'long',
+                day: '2-digit',
+                year: 'numeric'
+            })}</div>
                 `);
 
             a.title = `${MODE_NAMES[badge.mode]} completionist (awarded ${pretty_date})`
@@ -3017,5 +3038,1045 @@
         window.addEventListener('urlchange', function (e) {
             run();
         });
+    }
+
+    function getCalculator(score) {
+        switch (score.ruleset_id) {
+            case 0:
+                return new OsuPerformanceCalculator(score);
+            case 1:
+                return new TaikoPerformanceCalculator(score);
+            case 2:
+                return new CatchPerformanceCalculator(score);
+            case 3:
+                return new ManiaPerformanceCalculator(score);
+            default:
+                throw new Error(`Unknown ruleset ID: ${score.ruleset_id}`);
+        }
+    }
+
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+
+    //Models and classes
+    class Score {
+        constructor(obj, attributes) {
+            this.classic_total_score = obj.classic_total_score;
+            this.preserve = obj.preserve;
+            this.processed = obj.processed;
+            this.ranked = obj.ranked;
+            this.maximum_statistics = obj.maximum_statistics;
+            this.mods = new Mods(obj.mods);
+            this.statistics = obj.statistics;
+            this.total_score_without_mods = obj.total_score_without_mods;
+            this.beatmap_id = obj.beatmap_id;
+            this.best_id = obj.best_id;
+            this.id = obj.id;
+            this.rank = obj.rank;
+            this.type = obj.type;
+            this.user_id = obj.user_id;
+            this.accuracy = obj.accuracy;
+            this.build_id = obj.build_id;
+            this.ended_at = obj.ended_at;
+            this.has_replay = obj.has_replay;
+            this.is_perfect_combo = obj.is_perfect_combo;
+            this.legacy_perfect_combo = obj.legacy_perfect_combo;
+            this.legacy_score_id = obj.legacy_score_id;
+            this.legacy_total_score = obj.legacy_total_score;
+            this.max_combo = obj.max_combo;
+            this.passed = obj.passed;
+            this.pp = obj.pp;
+            this.ruleset_id = obj.ruleset_id;
+            this.ruleset = MODE_SLUGS_ALT[this.ruleset_id];
+            this.started_at = obj.started_at;
+            this.total_score = obj.total_score;
+            this.replay = obj.replay;
+            this.rank_global = obj.rank_global;
+            this.user = new User(obj.user);
+            this.beatmap = new Beatmap(obj.beatmap);
+            this.difficulty = new BeatmapDifficulty(this.beatmap, this.mods, attributes);
+            this.calculator = getCalculator(this);
+        }
+    }
+
+    class Beatmap {
+        constructor(obj) {
+            this.beatmapset_id = obj.beatmapset_id;
+            this.difficulty_rating = obj.difficulty_rating;
+            this.id = obj.id;
+            this.mode = obj.mode;
+            this.approved = obj.approved;
+            this.total_length = obj.total_length;
+            this.user_id = obj.user_id;
+            this.version = obj.version;
+            this.accuracy = obj.accuracy;
+            this.ar = obj.ar;
+            this.bpm = obj.bpm;
+            this.convert = obj.convert;
+            this.count_circles = obj.count_circles;
+            this.count_sliders = obj.count_sliders;
+            this.count_spinners = obj.count_spinners;
+            this.cs = obj.cs;
+            this.deleted_at = obj.deleted_at;
+            this.drain = obj.drain;
+            this.hit_length = obj.hit_length;
+            this.is_scoreable = obj.is_scoreable;
+            this.last_updated = obj.last_updated;
+            this.mode_int = obj.mode_int;
+            this.passcount = obj.passcount;
+            this.playcount = obj.playcount;
+            this.ranked = obj.ranked;
+            this.url = obj.url;
+            this.checksum = obj.checksum;
+            this.max_combo = obj.max_combo;
+        }
+    }
+
+    class User {
+        constructor(obj) {
+            this.avatar_url = obj.avatar_url;
+            this.country_code = obj.country_code;
+            this.default_group = obj.default_group;
+            this.id = obj.id;
+            this.is_active = obj.is_active;
+            this.is_bot = obj.is_bot;
+            this.is_deleted = obj.is_deleted;
+            this.is_online = obj.is_online;
+            this.is_supporter = obj.is_supporter;
+            this.last_visit = obj.last_visit;
+            this.pm_friends_only = obj.pm_friends_only;
+            this.profile_colour = obj.profile_colour;
+            this.username = obj.username;
+            this.country = obj.country;
+            this.cover = obj.cover;
+            this.groups = obj.groups;
+            this.team = obj.team;
+        }
+    }
+
+    const ar_ms_step1 = 120;
+    const ar_ms_step2 = 150;
+
+    const ar0_ms = 1800;
+    const ar5_ms = 1200;
+
+    const od_ms_step = 6;
+    const od0_ms = 79.5;
+    const od10_ms = 19.5;
+    class BeatmapDifficulty {
+        constructor(beatmap, mods, attributes) {
+            this.star_rating = parseFloat(attributes.star_rating ?? 0);
+
+            //osu
+            this.aim_difficulty = parseFloat(attributes.aim_difficulty ?? 0);
+            this.speed_difficulty = parseFloat(attributes.speed_difficulty ?? 0);
+            this.flashlight_difficulty = parseFloat(attributes.flashlight_difficulty ?? 0);
+            this.speed_note_count = parseFloat(attributes.speed_note_count ?? 0);
+            this.aim_difficult_slider_count = parseFloat(attributes.aim_difficult_slider_count ?? 0);
+            this.slider_factor = parseFloat(attributes.slider_factor ?? 0);
+            this.aim_difficult_strain_count = parseFloat(attributes.aim_difficult_strain_count ?? 0);
+            this.speed_difficult_strain_count = parseFloat(attributes.speed_difficult_strain_count ?? 0);
+
+            this.applyMods(beatmap, mods);
+        }
+
+        applyMods(beatmap, mods) {
+            let speed = mods.speed;
+
+            if (!this.approach_rate) {
+                let ar_multiplier = 1;
+                let ar;
+                let ar_ms;
+
+                if (Mods.hasMod(mods, "HR")) {
+                    ar_multiplier = 1.4;
+                } else if (Mods.hasMod(mods, "EZ")) {
+                    ar_multiplier = 0.5;
+                }
+
+                let original_ar = beatmap.ar;
+                if (Mods.hasMod(mods, "DA") && Mods.containsSetting(mods, "approach_rate")) {
+                    original_ar = Mods.getModSetting(mods, "DA", "approach_rate");
+                }
+                original_ar = Number(original_ar);
+
+                ar = original_ar * ar_multiplier;
+
+                if (ar <= 5)
+                    ar_ms = ar0_ms - ar_ms_step1 * ar;
+                else
+                    ar_ms = ar5_ms - ar_ms_step2 * (ar - 5);
+
+                ar_ms /= speed;
+
+                if (ar <= 5)
+                    ar = (ar0_ms - ar_ms) / ar_ms_step1;
+                else
+                    ar = 5 + (ar5_ms - ar_ms) / ar_ms_step2;
+
+                this.approach_rate = ar;
+            }
+
+            if (!this.circle_size) {
+                let cs = 1;
+                let cs_multiplier = 1;
+
+                if (Mods.hasMod(mods, "HR")) {
+                    cs_multiplier = 1.3;
+                } else if (Mods.hasMod(mods, "EZ")) {
+                    cs_multiplier = 0.5;
+                }
+
+                let original_cs = beatmap.cs;
+                if (Mods.hasMod(mods, "DA") && Mods.containsSetting(mods, "circle_size")) {
+                    original_cs = Mods.getModSetting(mods, "DA", "circle_size");
+                }
+                original_cs = Number(original_cs);
+
+                cs = original_cs * cs_multiplier;
+
+                if (cs > 10) cs = 10;
+
+                this.circle_size = cs;
+            }
+
+            if (!this.overall_difficulty) {
+                let od = 1;
+                let odms = 1;
+                let od_multiplier = 1;
+
+                if (Mods.hasMod(mods, "HR")) {
+                    od_multiplier = 1.4;
+                } else if (Mods.hasMod(mods, "EZ")) {
+                    od_multiplier = 0.5;
+                }
+
+                let original_od = beatmap.accuracy;
+                if (Mods.hasMod(mods, "DA") && Mods.containsSetting(mods, "overall_difficulty")) {
+                    original_od = Mods.getModSetting(mods, "DA", "overall_difficulty");
+                }
+                original_od = Number(original_od);
+
+                od = original_od * od_multiplier;
+                odms = od0_ms - Math.ceil(od_ms_step * od);
+                odms = Math.min(od0_ms, Math.max(od10_ms, odms));
+
+                odms /= speed;
+
+                od = (od0_ms - odms) / od_ms_step;
+
+                this.overall_difficulty = od;
+            }
+
+            if (!this.drain_rate) {
+                let hp = 1;
+                let hp_multiplier = 1;
+
+                if (Mods.hasMod(mods, "HR")) {
+                    hp_multiplier = 1.4;
+                } else if (Mods.hasMod(mods, "EZ")) {
+                    hp_multiplier = 0.5;
+                }
+
+                let original_hp = beatmap.drain;
+                if (Mods.hasMod(mods, "DA") && Mods.containsSetting(mods, "drain_rate")) {
+                    original_hp = Mods.getModSetting(mods, "DA", "drain_rate");
+                }
+                original_hp = Number(original_hp);
+
+                hp = original_hp * hp_multiplier;
+
+                if (hp > 10) hp = 10;
+
+                this.drain_rate = hp;
+            }
+        }
+    }
+
+    class Mods {
+        constructor(obj) {
+            this.data = obj;
+            this.speed = 1;
+
+            if (Mods.hasMod(this, "DT") || Mods.hasMod(this, "NC")) {
+                const mod = Mods.getMod(this, "DT") || Mods.getMod(this, "NC");
+                this.speed = mod?.settings?.speed_change || 1.5;
+            }
+
+            if (Mods.hasMod(this, "HT") || Mods.hasMod(this, "DC")) {
+                const mod = Mods.getMod(this, "HT") || Mods.getMod(this, "DC");
+                this.speed = mod?.settings?.speed_change || 0.75;
+            }
+        }
+
+        static isNoMod(mods) {
+            return mods.data.length === 0;
+        }
+
+        static hasMod(mods, mod) {
+            return mods.data.find(m => m.acronym === mod) !== undefined;
+        }
+
+        static hasMods(mods, acronyms) {
+            //return true if all the mods are present
+            return acronyms.every(acronym => mods.data.find(m => m.acronym === acronym) !== undefined);
+        }
+
+        static getMod(mods, mod) {
+            return mods.data.find(m => m.acronym === mod);
+        }
+
+        static getMods(mods) {
+            return mods.data;
+        }
+
+        static hasExactMods(mods, acronyms) {
+            //return true if the mods are exactly the same
+            if (mods.data.length !== acronyms.length) return false;
+            return mods.data.every(m => acronyms.includes(m.acronym));
+        }
+
+        static containsSettings(mods) {
+            return mods.data.some(m => m.settings !== undefined);
+        }
+
+        static containsSetting(mods, setting) {
+            return mods.data.some(m => m.settings !== undefined && m.settings[setting] !== undefined);
+        }
+
+        static getSetting(mods, setting) {
+            return mods.data.find(m => m.settings !== undefined && m.settings[setting] !== undefined);
+        }
+
+        static getModSetting(mods, mod, setting) {
+            if (!Mods.hasMod(mods, mod)) return null;
+            return Mods.getMod(mods, mod).settings[setting] || null;
+        }
+
+        static getClockRate(mods) {
+            let rate = 1;
+            let freq = 1;
+            let tempo = 1;
+            for (const mod of mods.data) {
+                if (Mods.isModSpeedChange(mod)) {
+                    let freqAdjust = 1;
+                    let tempoAdjust = mod.settings?.speed_change ?? freqAdjust;
+
+                    freq *= freqAdjust;
+                    tempo *= tempoAdjust;
+                }
+            }
+
+            rate = freq * tempo;
+
+            return rate;
+        }
+
+        static isModSpeedChange(mod) {
+            return mod.acronym === "DT" || mod.acronym === "NC" || mod.acronym === "HT" || mod.acronym === "DC";
+        }
+    }
+
+    class DifficultyRange {
+        constructor(result, min, average, max) {
+            this.result = result;
+            this.min = min;
+            this.average = average;
+            this.max = max;
+        }
+    }
+
+    class BeatmapDifficultyInfo {
+        static DifficultyRange(difficulty, min, mid, max) {
+            if (!min && !mid && !max)
+                return (difficulty - 5) / 5;
+
+            if (difficulty > 5)
+                return mid + (max - mid) * BeatmapDifficultyInfo.DifficultyRange(difficulty);
+            if (difficulty < 5)
+                return mid + (mid - min) * BeatmapDifficultyInfo.DifficultyRange(difficulty);
+        }
+    }
+
+    const HitResult = {
+        None: 0,
+        Miss: 1,
+        Meh: 2,
+        Ok: 3,
+        Good: 4,
+        Great: 5,
+        Perfect: 6,
+        SmallTickMiss: 7,
+        SmallTickHit: 8,
+        LargeTickMiss: 9,
+        LargeTickHit: 10,
+        SmallBonus: 11,
+        LargeBonus: 12,
+        IgnoreMiss: 13,
+        IgnoreHit: 14,
+        ComboBreak: 15,
+        SliderTailHit: 16,
+        LegacyComboIncrease: 17,
+    }
+
+    class HitWindows {
+        constructor() {
+            this.perfect = 0;
+            this.great = 0;
+            this.good = 0;
+            this.ok = 0;
+            this.meh = 0;
+            this.miss = 0;
+        }
+
+        SetDifficulty(difficulty) {
+            for (let range of this.GetRanges()) {
+                let value = BeatmapDifficultyInfo.DifficultyRange(difficulty, range.min, range.average, range.max);
+
+                switch (range.result) {
+                    case HitResult.Miss:
+                        this.miss = value;
+                        break;
+                    case HitResult.Meh:
+                        this.meh = value;
+                        break;
+                    case HitResult.Ok:
+                        this.ok = value;
+                        break;
+                    case HitResult.Good:
+                        this.good = value;
+                        break;
+                    case HitResult.Great:
+                        this.great = value;
+                        break;
+                    case HitResult.Perfect:
+                        this.perfect = value;
+                        break;
+                }
+            }
+        }
+
+        WindowFor(result) {
+            switch (result) {
+                case HitResult.Perfect:
+                    return this.perfect;
+                case HitResult.Great:
+                    return this.great;
+                case HitResult.Good:
+                    return this.good;
+                case HitResult.Ok:
+                    return this.ok;
+                case HitResult.Meh:
+                    return this.meh;
+                case HitResult.Miss:
+                    return this.miss;
+                default:
+                    throw new Error(`Invalid enum value ${result}`);
+            }
+        }
+
+        GetRanges() {
+            return [];
+        }
+    }
+
+    class OsuHitWindows extends HitWindows {
+        constructor() {
+            super();
+
+            this.MISS_WINDOW = 400;
+            this.OSU_RANGES = [
+                new DifficultyRange(HitResult.Great, 80, 50, 20),
+                new DifficultyRange(HitResult.Ok, 140, 100, 60),
+                new DifficultyRange(HitResult.Meh, 200, 150, 100),
+                new DifficultyRange(HitResult.Miss, this.MISS_WINDOW, this.MISS_WINDOW, this.MISS_WINDOW)
+            ];
+        }
+
+        SetDifficulty(difficulty) {
+            super.SetDifficulty(difficulty);
+        }
+
+        IsHitResultAllowed(result) {
+            switch (result) {
+                case HitResult.Great:
+                case HitResult.Ok:
+                case HitResult.Meh:
+                case HitResult.Miss:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        GetRanges() {
+            return this.OSU_RANGES;
+        }
+    }
+
+    class PerformanceCalculator {
+        constructor(score) {
+            this.score = score;
+        }
+
+        calculate() {
+            throw new Error("calculate() not implemented");
+        }
+    }
+
+    const PERFORMANCE_BASE_MULTIPLIER = 1.15;
+    class OsuPerformanceCalculator extends PerformanceCalculator {
+        constructor(score) {
+            super(score);
+
+            this.usingClassicSliderAccuracy = false;
+            if (Mods.hasMod(this.score.mods, "CL")) {
+                if (!Mods.containsSetting(this.score.mods, 'no_slider_head_accuracy') || Mods.getSetting(this.score.mods, 'no_slider_head_accuracy') === false)
+                    this.usingClassicSliderAccuracy = true;
+            }
+
+            this.effectiveMissCount = this.score.statistics.miss ?? 0;
+            this.totalImperfectHits = (this.score.statistics.meh ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.miss ?? 0);
+            this.countSliderEndsDropped = this.score.statistics.slider_tail_hit ? (this.score.beatmap.count_sliders - this.score.statistics.slider_tail_hit) : 0;
+            this.countSliderTickMiss = (this.score.statistics.large_tick_miss ?? 0);
+            this.totalHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0) + (this.score.statistics.miss ?? 0);
+            this.totalSuccessFullHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0);
+
+            this.clockRate = Mods.getClockRate(this.score.mods);
+            this.hitWindows = new OsuHitWindows();
+            this.hitWindows.SetDifficulty(this.score.difficulty.overall_difficulty);
+
+            this.greatHitWindow = this.hitWindows.WindowFor(HitResult.Great) / this.clockRate;
+            this.okHitWindow = this.hitWindows.WindowFor(HitResult.Ok) / this.clockRate;
+            this.mehHitWindow = this.hitWindows.WindowFor(HitResult.Meh) / this.clockRate;
+
+            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.approach_rate, 1800, 1200, 450) / this.clockRate;
+
+            this.overall_difficulty = (80 - this.greatHitWindow) / 6;
+            this.approach_rate = preempt > 1200 ? (1800 - preempt) / 120 : (1200 - preempt) / 150 + 5;
+
+            if (this.score.beatmap.count_sliders > 0) {
+                if (this.usingClassicSliderAccuracy) {
+                    let fullComboThreshold = this.score.beatmap.max_combo - 0.1 * this.score.beatmap.count_sliders;
+                    if (this.score.max_combo < fullComboThreshold)
+                        this.effectiveMissCount = fullComboThreshold / Math.max(1, this.score.max_combo);
+                    this.effectiveMissCount = Math.min(this.effectiveMissCount, this.totalImperfectHits);
+                } else {
+                    let fullComboThreshold = this.score.beatmap.max_combo - this.countSliderEndsDropped;
+                    if (this.score.max_combo < fullComboThreshold)
+                        this.effectiveMissCount = fullComboThreshold / Math.max(1, this.score.max_combo);
+                    this.effectiveMissCount = Math.min(this.effectiveMissCount, this.countSliderTickMiss + (this.score.statistics.miss ?? 0));
+                }
+            }
+
+            this.effectiveMissCount = Math.max(this.score.statistics.miss ?? 0, this.effectiveMissCount);
+            this.effectiveMissCount = Math.min(this.totalHits, this.effectiveMissCount);
+
+            this.multiplier = PERFORMANCE_BASE_MULTIPLIER;
+
+            if (Mods.hasMod(this.score.mods, "NF")) {
+                this.multiplier *= Math.max(0.9, 1.0 - 0.02 * this.effectiveMissCount);
+            }
+
+            if (Mods.hasMod(this.score.mods, "SO") && this.totalHits > 0) {
+                this.multiplier *= 1.0 - Math.pow(this.score.beatmap.count_spinners / this.totalHits, 0.85);
+            }
+
+            if (Mods.hasMod(this.score.mods, "RX")) {
+                let okMultiplier = Math.max(0.0, this.overall_difficulty > 0 ? 1 - Math.pow(this.overall_difficulty / 13.33, 1.8) : 1);
+                let mehMultiplier = Math.max(0.0, this.overall_difficulty > 0 ? 1 - Math.pow(this.overall_difficulty / 13.33, 5) : 1);
+
+                // this.effectiveMissCount = Math.min(this.effectiveMissCount + data.countOk * okMultiplier + data.countMeh * mehMultiplier, data.totalHits);
+                this.effectiveMissCount = Math.min(
+                    this.effectiveMissCount +
+                    (this.score.statistics.ok ?? 0) * okMultiplier +
+                    (this.score.statistics.meh ?? 0) * mehMultiplier,
+                    this.totalHits
+                )
+            }
+
+            this.calculate();
+        }
+
+
+        calculate() {
+            //todo
+            this.speedDeviation = this.calculateSpeedDeviation();
+            this.aim = this.calculateAim();
+            this.speed = this.calculateSpeed();
+            this.accuracy = this.calculateAccuracy();
+            this.flashlight = this.calculateFlashlight();
+            this.pp = this.calculateTotal();
+        }
+
+        calculateTotal() {
+            let total =
+                Math.pow(this.aim, 1.1) +
+                Math.pow(this.speed, 1.1) +
+                Math.pow(this.accuracy, 1.1) +
+                Math.pow(this.flashlight, 1.1);
+
+            total = Math.pow(total, 1 / 1.1);
+            total *= this.multiplier;
+
+            return total;
+        }
+
+        calculateAim() {
+            if (Mods.hasMod(this.score.mods, "AP")) {
+                return 0;
+            }
+
+            let aimDifficulty = this.score.difficulty.aim_difficulty ?? 0;
+
+            let aim_difficult_slider_count = this.score.difficulty.aim_difficult_slider_count ?? 0;
+
+            if (this.score.beatmap.count_sliders > 0 && aim_difficult_slider_count > 0) {
+                let estimateImproperlyFollowedDifficultSliders;
+
+                if (this.usingClassicSliderAccuracy) {
+                    let maximumPossibleDroppedSliders = this.totalImperfectHits;
+                    estimateImproperlyFollowedDifficultSliders = clamp(Math.min(maximumPossibleDroppedSliders, this.score.beatmap.max_combo - this.score.max_combo), 0, aim_difficult_slider_count);
+                } else {
+                    estimateImproperlyFollowedDifficultSliders = clamp(this.countSliderEndsDropped + this.countSliderTickMiss, 0, aim_difficult_slider_count);
+                }
+
+                let sliderNerfFactor = (1 - this.score.difficulty.slider_factor) * Math.pow(1 - estimateImproperlyFollowedDifficultSliders / aim_difficult_slider_count, 3) + this.score.difficulty.slider_factor;
+                aimDifficulty *= sliderNerfFactor;
+            }
+
+            let aimValue = this.difficultyToPerformance(aimDifficulty);
+
+            let lengthBonus = 0.95 + 0.4 * Math.min(1, this.totalHits / 2000.0) +
+                (this.totalHits > 2000 ? Math.log10(this.totalHits / 2000.0) * 0.5 : 0.0);
+
+            aimValue *= lengthBonus;
+
+            if (this.effectiveMissCount) {
+                aimValue *= this.calculateMissPenalty(this.effectiveMissCount, this.score.difficulty.aim_difficult_strain_count);
+            }
+
+            let approachRateFactor = 0.0;
+            if (this.score.difficulty.approach_rate > 10.33)
+                approachRateFactor = 0.3 * (this.score.difficulty.approach_rate - 10.33);
+            else if (this.score.difficulty.approach_rate < 8.0)
+                approachRateFactor = 0.05 * (8.0 - this.score.difficulty.approach_rate);
+
+            if (Mods.hasMod(this.score.mods, "RX"))
+                approachRateFactor = 0.0;
+
+            aimValue *= 1.0 + approachRateFactor * lengthBonus;
+
+            if (Mods.hasMod(this.score.mods, "BL"))
+                aimValue *= 1.3 + (this.totalHits * (0.0016 / (1 + 2 * this.effectiveMissCount)) * Math.pow(this.score.accuracy, 16)) * (1 - 0.003 * this.score.difficulty.drain_rate * this.score.difficulty.drain_rate);
+            else if (Mods.hasMod(this.score.mods, "HD") || Mods.hasMod(this.score.mods, "TC"))
+                aimValue *= 1.0 + 0.04 * (12.0 - this.score.difficulty.approach_rate);
+
+            aimValue *= this.score.accuracy;
+            aimValue *= 0.98 + Math.pow(this.overall_difficulty, 2) / 2500;
+
+            return aimValue;
+        }
+
+        calculateSpeed() {
+            if (Mods.hasMod(this.score.mods, "RX") || this.speedDeviation === null) {
+                return 0;
+            }
+
+            let speedValue = this.difficultyToPerformance(this.score.difficulty.speed_difficulty);
+            let lengthBonus = 0.95 + 0.4 * Math.min(1, this.totalHits / 2000.0) + (this.totalHits > 2000 ? Math.log10(this.totalHits / 2000.0) * 0.5 : 0.0);
+            speedValue *= lengthBonus;
+
+            if (this.effectiveMissCount > 0) {
+                speedValue *= this.calculateMissPenalty(this.effectiveMissCount, this.score.difficulty.speed_difficult_strain_count);
+            }
+
+            let approachRateFactor = 0.0;
+            if (this.score.difficulty.approach_rate > 10.33)
+                approachRateFactor = 0.3 * (this.score.difficulty.approach_rate - 10.33);
+
+            speedValue *= 1.0 + approachRateFactor * lengthBonus;
+
+            if (Mods.hasMod(this.score.mods, "BL"))
+                speedValue *= 1.12;
+            else if (Mods.hasMod(this.score.mods, "HD") || Mods.hasMod(this.score.mods, "TC"))
+                speedValue *= 1.0 + 0.04 * (12.0 - this.score.difficulty.approach_rate);
+
+            let speedHighDeviationMultiplier = this.calculateSpeedHighDeviationNerf();
+            speedValue *= speedHighDeviationMultiplier;
+
+            let relevantTotalDiff = this.totalHits - this.score.difficulty.speed_note_count;
+            let relevantCountGreat = Math.max(0.0, (this.score.statistics.great ?? 0) - relevantTotalDiff);
+            let relevantCountOk = Math.max(0.0, (this.score.statistics.ok ?? 0) - Math.max(0.0, relevantTotalDiff - (this.score.statistics.great ?? 0)));
+            let relevantCountMeh = Math.max(0.0, (this.score.statistics.meh ?? 0) - Math.max(0.0, relevantTotalDiff - (this.score.statistics.great ?? 0) - (this.score.statistics.ok ?? 0)));
+            let relevantAccuracy = this.score.difficulty.speed_note_count === 0.0 ? 0.0 : (
+                (relevantCountGreat * 6.0 + relevantCountOk * 2.0 + relevantCountMeh * 0.5) / (this.score.difficulty.speed_note_count * 6.0)
+            );
+
+            speedValue *= (0.95 + Math.pow(this.overall_difficulty, 2) / 750.0) * Math.pow((this.score.accuracy + relevantAccuracy) / 2.0, (14.5 - this.score.difficulty.overall_difficulty) * 0.5);
+            return speedValue;
+        }
+
+        calculateAccuracy() {
+            if (Mods.hasMod(this.score.mods, "RX")) {
+                return 0;
+            }
+
+            let betterAccuracyPercentage;
+            let amountHitObjectsWithAccuracy = this.score.beatmap.count_circles;
+            if (!this.usingClassicSliderAccuracy)
+                amountHitObjectsWithAccuracy += this.score.beatmap.count_sliders;
+
+            if (amountHitObjectsWithAccuracy > 0)
+                betterAccuracyPercentage = (((this.score.statistics.great ?? 0) - Math.max(this.totalHits - amountHitObjectsWithAccuracy, 0)) * 6 + (this.score.statistics.ok ?? 0) * 2 + (this.score.statistics.meh ?? 0)) / (amountHitObjectsWithAccuracy * 6);
+            else
+                betterAccuracyPercentage = 0;
+
+            if (betterAccuracyPercentage < 0)
+                betterAccuracyPercentage = 0;
+
+            let accuracyValue = Math.pow(1.52163, this.score.difficulty.overall_difficulty) * Math.pow(betterAccuracyPercentage, 24) * 2.83;
+            accuracyValue *= Math.min(1.15, Math.pow(amountHitObjectsWithAccuracy * 0.001, 0.3));
+
+            if (Mods.hasMod(this.score.mods, "BL"))
+                accuracyValue *= 1.14;
+            else if (Mods.hasMod(this.score.mods, "HD") || Mods.hasMod(this.score.mods, "TC"))
+                accuracyValue *= 1.08;
+
+            if (Mods.hasMod(this.score.mods, "FL"))
+                accuracyValue *= 1.02;
+
+            return accuracyValue;
+        }
+
+        calculateFlashlight() {
+            if (!Mods.hasMod(this.score.mods, "FL")) {
+                return 0;
+            }
+
+            let flashlightValue = (25 * Math.pow(this.score.difficulty.flashlight_difficulty ?? 0, 2));
+
+            if (this.effectiveMissCount > 0)
+                flashlightValue *= 0.97 * Math.pow(1 - Math.pow(this.effectiveMissCount / this.totalHits, 0.775), Math.pow(this.effectiveMissCount, 0.875));
+
+            flashlightValue *= this.getComboScalingFactor();
+
+            flashlightValue *= 0.7 + 0.1 * Math.min(1.0, this.totalHits / 200) + (this.totalHits > 200 ? 0.2 * Math.min(1.0, (this.totalHits - 200) / 200) : 0.0);
+
+            flashlightValue *= 0.5 + this.score.accuracy / 2.0;
+            flashlightValue *= 0.98 + Math.pow(this.overall_difficulty, 2) / 2500;
+
+            return flashlightValue;
+        }
+
+        getComboScalingFactor() {
+            return this.score.beatmap.max_combo <= 0 ? 1 : Math.min(1, Math.pow(this.score.max_combo, 0.8) / Math.pow(this.score.beatmap.max_combo, 0.8));
+        }
+
+        calculateMissPenalty(missCount, difficultStrainCount) {
+            return 0.96 / ((missCount / (4 * Math.pow(Math.log(difficultStrainCount), 0.94))) + 1);
+        }
+
+        difficultyToPerformance(difficulty) {
+            return Math.pow(5 * Math.max(1, difficulty / 0.0675) - 4, 3) / 100000;
+        }
+
+        calculateSpeedHighDeviationNerf() {
+            if (this.speedDeviation === null)
+                return 0.0;
+
+            let speedValue = this.difficultyToPerformance(this.score.difficulty.speed_difficulty);
+
+            let excessSpeedDifficultyCutoff = 100 + 220 * Math.pow(22 / this.speedDeviation, 6.5);
+
+            if (speedValue <= excessSpeedDifficultyCutoff)
+                return 1.0;
+
+            const scale = 50;
+            let adjustedSpeedValue = scale * (Math.log((speedValue - excessSpeedDifficultyCutoff) / scale + 1) + excessSpeedDifficultyCutoff / scale);
+
+            let lerp = 1 - DifficultyCalculationUtils.ReverseLerp(this.speedDeviation, 22.0, 27.0);
+            adjustedSpeedValue = DifficultyCalculationUtils.Lerp(adjustedSpeedValue, speedValue, lerp);
+
+            return adjustedSpeedValue / speedValue;
+        }
+
+        calculateSpeedDeviation() {
+            if (this.totalSuccessFullHits === 0)
+                return null;
+
+            let speedNoteCount = this.score.difficulty.speed_note_count ?? 0;
+            speedNoteCount += (this.totalHits - this.score.difficulty.speed_note_count) * 0.1;
+
+            let relevantCountMiss = Math.min(this.score.statistics.miss ?? 0, speedNoteCount);
+            let relevantCountMeh = Math.min(this.score.statistics.meh ?? 0, speedNoteCount - relevantCountMiss);
+            let relevantCountOk = Math.min(this.score.statistics.ok ?? 0, speedNoteCount - relevantCountMiss - relevantCountMeh);
+            let relevantCountGreat = Math.max(0, speedNoteCount - relevantCountMiss - relevantCountMeh - relevantCountOk);
+
+            return this.calculateDeviation(relevantCountGreat, relevantCountOk, relevantCountMeh, relevantCountMiss);
+        }
+
+        calculateDeviation(relevantCountGreat, relevantCountOk, relevantCountMeh, relevantCountMiss) {
+            if (relevantCountGreat + relevantCountOk + relevantCountMeh <= 0)
+                return null;
+
+            let objectCount = relevantCountGreat + relevantCountOk + relevantCountMeh + relevantCountMiss;
+
+            let n = Math.max(1, objectCount - relevantCountMiss - relevantCountMeh);
+            const z = 2.32634787404;
+
+            let p = relevantCountGreat / n;
+
+            let pLowerBound = (n * p + z * z / 2) / (n + z * z) - z / (n + z * z) * Math.sqrt(n * p * (1 - p) + z * z / 4);
+            let deviation = this.greatHitWindow / (Math.sqrt(2) * DifficultyCalculationUtils.ErfInv(2 * pLowerBound - 1));
+
+            let randomValue = Math.sqrt(2 / Math.PI) * this.okHitWindow * Math.exp(-0.5 * Math.pow(this.okHitWindow / deviation, 2)) / (deviation * DifficultyCalculationUtils.Erf(this.okHitWindow / (Math.sqrt(2) * deviation)));
+
+            deviation *= Math.sqrt(1 - randomValue);
+
+            let limitValue = this.okHitWindow / Math.sqrt(3);
+
+            if (pLowerBound === 0 || randomValue >= 1 || deviation > limitValue)
+                return limitValue;
+
+            let mehVariance = (this.mehHitWindow * this.mehHitWindow + this.okHitWindow * this.mehHitWindow + this.okHitWindow * this.okHitWindow) / 3;
+
+            deviation = Math.sqrt(((relevantCountGreat + relevantCountOk) * Math.pow(deviation, 2) + relevantCountMeh * mehVariance) / (relevantCountGreat + relevantCountGreat + relevantCountMeh));
+            return deviation;
+        }
+    }
+
+    //THIS IS SO ASS
+    const erf_imp_an = [Number("0.00337916709551257388990745"), Number("-0.00073695653048167948530905"), Number("-0.374732337392919607868241"), Number("0.0817442448733587196071743"), Number("-0.0421089319936548595203468"), Number("0.0070165709512095756344528"), Number("-0.00495091255982435110337458"), Number("0.000871646599037922480317225")];
+    const erf_imp_ad = [Number("1"), Number("-0.218088218087924645390535"), Number("0.412542972725442099083918"), Number("-0.0841891147873106755410271"), Number("0.0655338856400241519690695"), Number("-0.0120019604454941768171266"), Number("0.00408165558926174048329689"), Number("-0.000615900721557769691924509")];
+    const erf_imp_bn = [Number("-0.0361790390718262471360258"), Number("0.292251883444882683221149"), Number("0.281447041797604512774415"), Number("0.125610208862766947294894"), Number("0.0274135028268930549240776"), Number("0.00250839672168065762786937")];
+    const erf_imp_bd = [Number("1"), Number("1.8545005897903486499845"), Number("1.43575803037831418074962"), Number("0.582827658753036572454135"), Number("0.124810476932949746447682"), Number("0.0113724176546353285778481")];
+    const erf_imp_cn = [Number("-0.0397876892611136856954425"), Number("0.153165212467878293257683"), Number("0.191260295600936245503129"), Number("0.10276327061989304213645"), Number("0.029637090615738836726027"), Number("0.0046093486780275489468812"), Number("0.000307607820348680180548455")];
+    const erf_imp_cd = [Number("1"), Number("1.95520072987627704987886"), Number("1.64762317199384860109595"), Number("0.768238607022126250082483"), Number("0.209793185936509782784315"), Number("0.0319569316899913392596356"), Number("0.00213363160895785378615014")];
+    const erf_imp_dn = [Number("-0.0300838560557949717328341"), Number("0.0538578829844454508530552"), Number("0.0726211541651914182692959"), Number("0.0367628469888049348429018"), Number("0.00964629015572527529605267"), Number("0.00133453480075291076745275"), Number("0.0000778087599782504251917881")];
+    const erf_imp_dd = [Number("1"), Number("1.75967098147167528287343"), Number("1.32883571437961120556307"), Number("0.552528596508757581287907"), Number("0.133793056941332861912279"), Number("0.0179509645176280768640766"), Number("0.00104712440019937356634038"), Number("-0.0000000106640381820357337177643")];
+    const erf_imp_en = [Number("-0.0117907570137227847827732"), Number("0.014262132090538809896674"), Number("0.0202234435902960820020765"), Number("0.00930668299990432009042239"), Number("0.00213357802422065994322516"), Number("0.00025022987386460102395382"), Number("0.0000120534912219588189822126")];
+    const erf_imp_ed = [Number("1"), Number("1.50376225203620482047419"), Number("0.965397786204462896346934"), Number("0.339265230476796681555511"), Number("0.0689740649541569716897427"), Number("0.00771060262491768307365526"), Number("0.000371421101531069302990367")];
+    const erf_imp_fn = [Number("-0.00546954795538729307482955"), Number("0.00404190278731707110245394"), Number("0.0054963369553161170521356"), Number("0.00212616472603945399437862"), Number("0.000394984014495083900689956"), Number("0.0000365565477064442377259271"), Number("0.000001354858971099323253786")];
+    const erf_imp_fd = [Number("1"), Number("1.21019697773630784832251"), Number("0.620914668221143886601045"), Number("0.173038430661142762569515"), Number("0.0276550813773432047594539"), Number("0.00240625974424309709745382"), Number("0.0000891811817251336577241006"), Number("-0.0000000000465528836283382684461025")];
+    const erf_imp_gn = [Number("-0.00270722535905778347999196"), Number("0.0013187563425029400461378"), Number("0.00119925933261002333923989"), Number("0.00027849619811344664248235"), Number("0.0000267822988218331849989363"), Number("0.000000923043672315028197865066")];
+    const erf_imp_gd = [Number("1"), Number("0.814632808543141591118279"), Number("0.268901665856299542168425"), Number("0.0449877216103041118694989"), Number("0.00381759663320248459168994"), Number("0.000131571897888596914350697"), Number("0.0000000000404815359675764138445257")];
+    const erf_imp_hn = [Number("-0.00109946720691742196814323"), Number("0.000406425442750422675169153"), Number("0.000274499489416900707787024"), Number("0.0000465293770646659383436343"), Number("0.00000320955425395767463401993"), Number("0.0000000778286018145020892261936")];
+    const erf_imp_hd = [Number("1"), Number("0.588173710611846046373373"), Number("0.139363331289409746077541"), Number("0.0166329340417083678763028"), Number("0.00100023921310234908642639"), Number("0.000024254837521587225125068")];
+    const erf_imp_in = [Number("-0.00056907993601094962855594"), Number("0.000169498540373762264416984"), Number("0.0000518472354581100890120501"), Number("0.00000382819312231928859704678"), Number("0.0000000824989931281894431781794")];
+    const erf_imp_id = [Number("1"), Number("0.339637250051139347430323"), Number("0.043472647870310663055044"), Number("0.00248549335224637114641629"), Number("0.0000535633305337152900549536"), Number("-0.000000000000117490944405459578783846")];
+    const erf_imp_jn = [Number("-0.000241313599483991337479091"), Number("0.0000574224975202501512365975"), Number("0.0000115998962927383778460557"), Number("0.000000581762134402593739370875"), Number("0.0000000853971555085673614607418")];
+    const erf_imp_jd = [Number("1"), Number("0.233044138299687841018015"), Number("0.0204186940546440312625597"), Number("0.000797185647564398289151125"), Number("0.0000117019281670172327758019")];
+    const erf_imp_kn = [Number("-0.000146674699277760365803642"), Number("0.0000162666552112280519955647"), Number("0.00000269116248509165239294897"), Number("0.0000000979584479468091935086972"), Number("0.00000000101994647625723465722285")];
+    const erf_imp_kd = [Number("1"), Number("0.165907812944847226546036"), Number("0.0103361716191505884359634"), Number("0.000286593026373868366935721"), Number("0.0000298401570840900340874568")];
+    const erf_imp_ln = [Number("-0.0000583905797629771786720406"), Number("0.0000412510325105496173512992"), Number("0.00000431790922420250949096906"), Number("0.0000000993365155590013193345569"), Number("0.0000000000653480510020104699270084")];
+    const erf_imp_ld = [Number("1"), Number("0.105077086072039915406159"), Number("0.00414278428675475620830226"), Number("0.0000726338754644523769144108"), Number("0.000000477818471047398785369849")];
+    const erf_imp_mn = [Number("-0.0000196457797609229579459841"), Number("0.0000157243887666800692441195"), Number("0.000000543902511192700878690335"), Number("0.000000000317472492369117710852685")];
+    const erf_imp_md = [Number("1"), Number("0.052803989240957632204885"), Number("0.000926876069151753290378112"), Number("0.0000541011723226630257077328"), Number("0.000000000000535093845803642394908747")];
+    const erf_imp_nn = [Number("-0.00000789224703978722689089794"), Number("0.00000622088451660986955124162"), Number("0.000000145728445676882396797184"), Number("0.0000000000603715505542715364529243")];
+    const erf_imp_nd = [Number("1"), Number("0.0375328846356293715248719"), Number("0.000467919535974625308126054"), Number("0.0000000193847039275845656900547")];
+
+    const erv_inv_imp_an = [Number("-0.000508781949658280665617"), Number("-0.00836874819741736770379"), Number("0.0334806625409744615033"), Number("-0.0126926147662974029034"), Number("-0.0365637971411762664006"), Number("0.0219878681111168899165"), Number("0.00822687874676915743155"), Number("-0.00538772965071242932965")]
+    const erv_inv_imp_ad = [Number("1"), Number("-0.970005043303290640362"), Number("-1.56574558234175846809"), Number("1.56221558398423026363"), Number("0.662328840472002992063"), Number("-0.71228902341542847553"), Number("-0.0527396382340099713954"), Number("0.0795283687341571680018"), Number("-0.00233393759374190016776"), Number("0.000886216390456424707504")]
+    const erv_inv_imp_bn = [Number("-0.202433508355938759655"), Number("0.105264680699391713268"), Number("8.37050328343119927838"), Number("17.6447298408374015486"), Number("-18.8510648058714251895"), Number("-44.6382324441786960818"), Number("17.445385985570866523"), Number("21.1294655448340526258"), Number("-3.67192254707729348546")]
+    const erv_inv_imp_bd = [Number("1"), Number("6.24264124854247537712"), Number("3.9713437953343869095"), Number("-28.6608180499800029974"), Number("-20.1432634680485188801"), Number("48.5609213108739935468"), Number("10.8268667355460159008"), Number("-22.6436933413139721736"), Number("1.72114765761200282724")]
+    const erv_inv_imp_cn = [Number("-0.131102781679951906451"), Number("-0.163794047193317060787"), Number("0.117030156341995252019"), Number("0.387079738972604337464"), Number("0.337785538912035898924"), Number("0.142869534408157156766"), Number("0.0290157910005329060432"), Number("0.00214558995388805277169"), Number("-0.000000679465575181126350155"), Number("0.000000285225331782217055858"), Number("-0.0000000681149956853776992068")]
+    const erv_inv_imp_cd = [Number("1"), Number("3.46625407242567245975"), Number("5.38168345707006855425"), Number("4.77846592945843778382"), Number("2.59301921623620271374"), Number("0.848854343457902036425"), Number("0.152264338295331783612"), Number("0.01105924229346489121")]
+    const erv_inv_imp_dn = [Number("-0.0350353787183177984712"), Number("-0.00222426529213447927281"), Number("0.0185573306514231072324"), Number("0.00950804701325919603619"), Number("0.00187123492819559223345"), Number("0.000157544617424960554631"), Number("0.460469890584317994083e-5"), Number("-0.230404776911882601748e-9"), Number("0.266339227425782031962e-11")]
+    const erv_inv_imp_dd = [Number("1"), Number("1.3653349817554063097"), Number("0.762059164553623404043"), Number("0.220091105764131249824"), Number("0.0341589143670947727934"), Number("0.00263861676657015992959"), Number("0.764675292302794483503e-4")]
+    const erv_inv_imp_en = [Number("-0.0167431005076633737133"), Number("-0.00112951438745580278863"), Number("0.00105628862152492910091"), Number("0.000209386317487588078668"), Number("0.000014962 4783758342370182"), Number("0.000000449696789927706453732"), Number("0.0000000462596163522878599135"), Number("-0.0000000281128735628831791805"), Number("0.000000000000099055709973310326855"), Number("0.00000000000000099055709973310326855")]
+    const erv_inv_imp_ed = [Number("1"), Number("0.591429344886417493481"), Number("0.138151865749083321638"), Number("0.0160746087093676504695"), Number("0.000964011 807005165528527"), Number("0.275335474764726041141e-4"), Number("0.282243172016108031869e-6")]
+    const erv_inv_imp_fn = [Number("-0.0024978212791898131227"), Number("-0.779190719229053954292e-5"), Number("0.254723037 413027451751e-4"), Number("0.162397777342510920873e-5"), Number("0.396341011304801168516e-7"), Number("0.411632831190944208473e-9"), Number("0.145596286718675035587e-11"), Number("-0.116765012397184275695e-17")]
+    const erv_inv_imp_fd = [Number("1"), Number("0.207123112 214422517181"), Number("0.0169410838120975906478"), Number("0.000690538 265622684595676"), Number("0.145007359818232637924e-4"), Number("0.144437756628144157666e-6"), Number("0.509761276599778486139e-9")]
+    const erv_inv_imp_gn = [Number("-0.000539042911019078575891"), Number("-0.28398759004727721098e-6"), Number("0.899465114892291446442e-6"), Number("0.229345859265920864296e-7"), Number("0.225561444863500149219e-9"), Number("0.947846627503022684216e-12"), Number("0.135880130108924861008e-14"), Number("-0.348890393399948882918e-21")]
+    const erv_inv_imp_gd = [Number("1"), Number("0.084574623 4001899436914"), Number("0.00282092984726264681981"), Number("0.468292921 940894236786e-4"), Number("0.399968812193862100054e-6"), Number("0.161809290887904476097e-8"), Number("0.231558608310259605225e-11")]
+
+    class DifficultyCalculationUtils {
+        static Erf(x) {
+            if (x == 0) return 0;
+            if (x == Number.POSITIVE_INFINITY) return 1;
+            if (x == Number.NEGATIVE_INFINITY) return -1;
+            if (isNaN(x)) return NaN;
+            return DifficultyCalculationUtils.erfImp(x, false);
+        }
+
+        static erfImp(z, invert) {
+            if (z < 0) {
+                if (!invert) return -this.erfImp(-z, false);
+                if (z < -0.5) return 2 - this.erfImp(-z, true);
+                return 1 + erfImp(-z, false);
+            }
+            let result;
+            if (z < 0.5) {
+                if (z < 1e-10) result = (z * 1.125) + (z * 0.003379167095512573896158903121545171688);
+                else result = (z * 1.125) + (z * this.evaluatePolynomial(z, erf_imp_an) / this.evaluatePolynomial(z, erf_imp_ad));
+            } else if (z < 110) {
+                invert = !invert;
+                let r, b;
+                if (z < 0.75) {
+                    r = this.evaluatePolynomial(z - 0.5, erf_imp_bn) / this.evaluatePolynomial(z - 0.5, erf_imp_bd);
+                    b = 0.3440242112;
+                } else if (z < 1.25) {
+                    r = this.evaluatePolynomial(z - 0.75, erf_imp_cn) / this.evaluatePolynomial(z - 0.75, erf_imp_cd);
+                    b = 0.419990927;
+                }
+                else if (z < 2.25) {
+                    r = this.evaluatePolynomial(z - 1.25, erf_imp_dn) / this.evaluatePolynomial(z - 1.25, erf_imp_dd);
+                    b = 0.4898625016;
+                }
+                else if (z < 3.5) {
+                    r = this.evaluatePolynomial(z - 2.25, erf_imp_en) / this.evaluatePolynomial(z - 2.25, erf_imp_ed);
+                    b = 0.5317370892;
+                }
+                else if (z < 5.25) {
+                    r = this.evaluatePolynomial(z - 3.5, erf_imp_fn) / this.evaluatePolynomial(z - 3.5, erf_imp_fd);
+                    b = 0.5489973426;
+                }
+                else if (z < 8) {
+                    r = this.evaluatePolynomial(z - 5.25, erf_imp_gn) / this.evaluatePolynomial(z - 5.25, erf_imp_gd);
+                    b = 0.5571740866;
+                }
+                else if (z < 11.5) {
+                    r = this.evaluatePolynomial(z - 8, erf_imp_hn) / this.evaluatePolynomial(z - 8, erf_imp_hd);
+                    b = 0.5609807968;
+                }
+                else if (z < 17) {
+                    r = this.evaluatePolynomial(z - 11.5, erf_imp_in) / this.evaluatePolynomial(z - 11.5, erf_imp_id);
+                    b = 0.5626493692;
+                }
+                else if (z < 24) {
+                    r = this.evaluatePolynomial(z - 17, erf_imp_jn) / this.evaluatePolynomial(z - 17, erf_imp_jd);
+                    b = 0.5634598136;
+                }
+                else if (z < 38) {
+                    r = this.evaluatePolynomial(z - 24, erf_imp_kn) / this.evaluatePolynomial(z - 24, erf_imp_kd);
+                    b = 0.5638477802;
+                }
+                else if (z < 60) {
+                    r = this.evaluatePolynomial(z - 38, erf_imp_ln) / this.evaluatePolynomial(z - 38, erf_imp_ld);
+                    b = 0.5640528202;
+                }
+                else if (z < 85) {
+                    r = this.evaluatePolynomial(z - 60, erf_imp_mn) / this.evaluatePolynomial(z - 60, erf_imp_md);
+                    b = 0.5641309023;
+                }
+                else {
+                    r = this.evaluatePolynomial(z - 85, erf_imp_nn) / this.evaluatePolynomial(z - 85, erf_imp_nd);
+                    b = 0.5641584396;
+                }
+
+                let g = Math.exp(-z * z) / z;
+                result = (g * b) + (g * r);
+            } else {
+                result = 0;
+                invert = !invert;
+            }
+
+            if (invert) {
+                result = 1 - result;
+            }
+
+            return result;
+        }
+
+        static ErfInv(z) {
+            if (z === 0) return 0;
+
+            if (z >= 1) return Infinity;
+
+            if (z <= -1) return -Infinity;
+
+            let p, q, s;
+
+            if (z < 0) {
+                p = -z;
+                q = 1 - p;
+                s = -1;
+            } else {
+                p = z;
+                q = 1 - z;
+                s = 1;
+            }
+
+            return DifficultyCalculationUtils.ErfInvImpl(p, q, s);
+        }
+
+        static ErfInvImpl(p, q, s) {
+            let result;
+
+            if (p <= 0.5) {
+                const y = 0.0891314744949340820313;
+                let g = p * (p + 10);
+                let r = DifficultyCalculationUtils.evaluatePolynomial(p, erv_inv_imp_an) / DifficultyCalculationUtils.evaluatePolynomial(p, erv_inv_imp_ad);
+                result = (g * y) + (g * r);
+            } else if (q >= 0.25) {
+                const y = 2.249481201171875;
+                let g = Math.sqrt(-2 * Math.log(q));
+                let xs = q - 0.25;
+                let r = DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_bn) / DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_bd);
+                result = g / (y + r);
+            } else {
+                let x = Math.sqrt(-Math.log(q));
+                if (x < 3) {
+                    const y = 0.807220458984375;
+                    let xs = x - 1.125;
+                    let r = DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_cn) / DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_cd);
+                    result = (y * x) + (r * x);
+                } else if (x < 6) {
+                    const y = 0.93995571136474609375;
+                    let xs = x - 3;
+                    let r = DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_dn) / DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_dd);
+                    result = (y * x) + (r * x);
+                } else if (x < 18) {
+                    const y = 0.98362827301025390625;
+                    let xs = x - 6;
+                    let r = DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_en) / DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_ed);
+                    result = (y * x) + (r * x);
+                } else if (x < 44) {
+                    const y = 0.99714565277099609375;
+                    let xs = x - 18;
+                    let r = DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_fn) / DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_fd);
+                    result = (y * x) + (r * x);
+                } else {
+                    const y = 0.99941349029541015625;
+                    let xs = x - 44;
+                    let r = DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_gn) / DifficultyCalculationUtils.evaluatePolynomial(xs, erv_inv_imp_gd);
+                    result = (y * x) + (r * x);
+                }
+            }
+
+            return s * result;
+        }
+
+        static evaluatePolynomial(z, coefficients) {
+            if (coefficients === undefined || coefficients.length === 0) {
+                throw new Error("Coefficients array is empty");
+            }
+
+            let n = coefficients.length;
+
+            if (n === 0) {
+                return 0;
+            }
+
+            let sum = coefficients[n - 1];
+
+            for (let i = n - 2; i >= 0; --i) {
+                sum *= z;
+                sum += coefficients[i];
+            }
+
+            return sum;
+        }
+
+        static ReverseLerp(x, start, end) {
+            return Math.min(Math.max((x - start) / (end - start), 0.0), 1.0);
+        }
+
+        static Lerp(start, end, t) {
+            return start + (end - start) * t;
+        }
     }
 })();
