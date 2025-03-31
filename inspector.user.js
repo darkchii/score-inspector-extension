@@ -3168,6 +3168,7 @@
     class BeatmapDifficulty {
         constructor(beatmap, mods, attributes) {
             this.star_rating = parseFloat(attributes.star_rating ?? 0);
+            this.max_combo = parseFloat(attributes.max_combo ?? 0);
 
             //osu
             this.aim_difficulty = parseFloat(attributes.aim_difficulty ?? 0);
@@ -3982,6 +3983,79 @@
             let p = this.countGreat / n;
             let pLowerBound = (n * p + z * z / 2) / (n + z * z) - z / (n + z * z) * Math.sqrt(n * p * (1 - p) + z * z / 4);
             return this.greatHitWindow / (Math.sqrt(2) * DifficultyCalculationUtils.ErfInv(pLowerBound));
+        }
+    }
+
+    class CatchPerformanceCalculator extends PerformanceCalculator {
+        constructor(score) {
+            super(score);
+
+            this.num300 = this.score.statistics.great ?? 0;
+            this.num100 = this.score.statistics.large_tick_hit ?? 0;
+            this.num50 = this.score.statistics.small_tick_hit ?? 0;
+            this.numKatu = this.score.statistics.small_tick_miss ?? 0;
+            this.numMiss = (this.score.statistics.miss ?? 0) + (this.score.statistics.large_tick_miss ?? 0);
+
+            let value = Math.pow(5.0 * Math.max(1.0, this.score.difficulty.star_rating / 0.0049) - 4.0, 2.0) / 100000.0;
+
+            let numTotalHits = this.totalComboHits();
+
+            let lengthBonus = 0.95 + 0.3 * Math.min(1.0, numTotalHits / 2500.0) +
+                (numTotalHits > 2500 ? Math.log10(numTotalHits / 2500.0) * 0.475 : 0.0);
+            value *= lengthBonus;
+
+            value *= Math.pow(0.97, this.numMiss);
+
+            if(this.score.difficulty.max_combo > 0)
+                value *= Math.min(Math.pow(this.score.max_combo, 0.8) / Math.pow(this.score.difficulty.max_combo, 0.8), 1.0);
+
+            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.base_approach_rate, 1800, 1200, 450) / this.clockRate;
+
+            let approach_rate = preempt > 1200.0 ? -(preempt - 1800.0) / 120.0 : -(preempt - 1200.0) / 150.0 + 5.0;
+
+            let approachRateFactor = 1.0;
+            if(approach_rate > 9.0)
+                approachRateFactor += 0.1 * (approach_rate - 9.0);
+            if(approach_rate > 10.0)
+                approachRateFactor += 0.1 * (approach_rate - 10.0);
+            else if (approach_rate < 8.0)
+                approachRateFactor += 0.025 * (8.0 - approach_rate);
+
+            value *= approachRateFactor;
+
+            if(Mods.hasMod(this.score.mods, "HD")){
+                if(approach_rate <= 10.0)
+                    value *= 1.05 + 0.075 * (10.0 - approach_rate);
+                else if(approach_rate > 10.0)
+                    value *= 1.01 + 0.04*(11.0-Math.min(11.0, approach_rate));
+            }
+
+            if(Mods.hasMod(this.score.mods, "FL"))
+                value *= 1.35 * lengthBonus;
+
+            value *= Math.pow(this.accuracy(), 5.5);
+
+            if(Mods.hasMod(this.score.mods, "NF"))
+                value *= Math.max(0.9, 1.0 - 0.02 * this.numMiss);
+
+            this.pp = value;
+        }
+
+        accuracy() {
+            return this.totalHits() == 0 ? 0 : clamp(this.totalSuccessfulHits() / this.totalHits(), 0, 1);
+        }
+
+        totalSuccessfulHits() {
+            return this.num50 + this.num100 + this.num300;
+        }
+
+        totalHits() {
+            return this.num50 + this.num100 + this.num300 + this.numKatu + this.numMiss;
+
+        }
+
+        totalComboHits() {
+            return this.numMiss + this.num100 + this.num300;
         }
     }
 
