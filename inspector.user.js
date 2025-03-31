@@ -648,13 +648,13 @@
                 const stat_value = document.createElement("div");
                 stat_value.classList.add("score-stats__stat-row");
                 stat_value.textContent = value;
-                if(light){
+                if (light) {
                     //italics
                     stat_value.style.fontStyle = "italic";
                     stat_value.style.color = "lightgray";
                 }
 
-                if(title){
+                if (title) {
                     //tooltip
                     stat_value.setAttribute("title", title);
                     stat_value.setAttribute("data-tooltip", title);
@@ -690,7 +690,7 @@
                 }
 
                 const score_stats_group_row = document.getElementsByClassName("score-stats__group-row")[0];
-                score_stats_group_row.appendChild(createStat("pp", `${formatNumber(active_score.calculator?.pp, 2)}pp`, true, 'Estimated performance'));
+                score_stats_group_row.appendChild(createStat("pp", `${formatNumber(active_score.calculator?.pp, 2)}`, true, 'Estimated performance'));
             }
 
             let ruleset_scores = {};
@@ -3217,6 +3217,7 @@
                     ar = 5 + (ar5_ms - ar_ms) / ar_ms_step2;
 
                 this.approach_rate = ar;
+                this.base_approach_rate = original_ar;
             }
 
             if (!this.circle_size) {
@@ -3240,6 +3241,7 @@
                 if (cs > 10) cs = 10;
 
                 this.circle_size = cs;
+                this.base_circle_size = original_cs;
             }
 
             if (!this.overall_difficulty) {
@@ -3268,6 +3270,7 @@
                 od = (od0_ms - odms) / od_ms_step;
 
                 this.overall_difficulty = od;
+                this.base_overall_difficulty = original_od;
             }
 
             if (!this.drain_rate) {
@@ -3291,6 +3294,7 @@
                 if (hp > 10) hp = 10;
 
                 this.drain_rate = hp;
+                this.base_drain_rate = original_hp;
             }
         }
     }
@@ -3389,7 +3393,7 @@
     }
 
     class BeatmapDifficultyInfo {
-        static DifficultyRange(difficulty, min, mid, max) {
+        static DifficultyRange(difficulty, min = null, mid = null, max = null) {
             if (!min && !mid && !max)
                 return (difficulty - 5) / 5;
 
@@ -3506,9 +3510,8 @@
                 case HitResult.Meh:
                 case HitResult.Miss:
                     return true;
-                default:
-                    return false;
             }
+            return false;
         }
 
         GetRanges() {
@@ -3546,13 +3549,13 @@
 
             this.clockRate = Mods.getClockRate(this.score.mods);
             this.hitWindows = new OsuHitWindows();
-            this.hitWindows.SetDifficulty(this.score.difficulty.overall_difficulty);
+            this.hitWindows.SetDifficulty(this.score.difficulty.base_overall_difficulty);
 
             this.greatHitWindow = this.hitWindows.WindowFor(HitResult.Great) / this.clockRate;
             this.okHitWindow = this.hitWindows.WindowFor(HitResult.Ok) / this.clockRate;
             this.mehHitWindow = this.hitWindows.WindowFor(HitResult.Meh) / this.clockRate;
 
-            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.approach_rate, 1800, 1200, 450) / this.clockRate;
+            let preempt = BeatmapDifficultyInfo.DifficultyRange(this.score.difficulty.base_approach_rate, 1800, 1200, 450) / this.clockRate;
 
             this.overall_difficulty = (80 - this.greatHitWindow) / 6;
             this.approach_rate = preempt > 1200 ? (1800 - preempt) / 120 : (1200 - preempt) / 150 + 5;
@@ -3659,10 +3662,10 @@
             }
 
             let approachRateFactor = 0.0;
-            if (this.score.difficulty.approach_rate > 10.33)
-                approachRateFactor = 0.3 * (this.score.difficulty.approach_rate - 10.33);
-            else if (this.score.difficulty.approach_rate < 8.0)
-                approachRateFactor = 0.05 * (8.0 - this.score.difficulty.approach_rate);
+            if (this.approach_rate > 10.33)
+                approachRateFactor = 0.3 * (this.approach_rate - 10.33);
+            else if (this.approach_rate < 8.0)
+                approachRateFactor = 0.05 * (8.0 - this.approach_rate);
 
             if (Mods.hasMod(this.score.mods, "RX"))
                 approachRateFactor = 0.0;
@@ -3672,7 +3675,7 @@
             if (Mods.hasMod(this.score.mods, "BL"))
                 aimValue *= 1.3 + (this.totalHits * (0.0016 / (1 + 2 * this.effectiveMissCount)) * Math.pow(this.score.accuracy, 16)) * (1 - 0.003 * this.score.difficulty.drain_rate * this.score.difficulty.drain_rate);
             else if (Mods.hasMod(this.score.mods, "HD") || Mods.hasMod(this.score.mods, "TC"))
-                aimValue *= 1.0 + 0.04 * (12.0 - this.score.difficulty.approach_rate);
+                aimValue *= 1.0 + 0.04 * (12.0 - this.approach_rate);
 
             aimValue *= this.score.accuracy;
             aimValue *= 0.98 + Math.pow(this.overall_difficulty, 2) / 2500;
@@ -3694,15 +3697,15 @@
             }
 
             let approachRateFactor = 0.0;
-            if (this.score.difficulty.approach_rate > 10.33)
-                approachRateFactor = 0.3 * (this.score.difficulty.approach_rate - 10.33);
+            if (this.approach_rate > 10.33)
+                approachRateFactor = 0.3 * (this.approach_rate - 10.33);
 
             speedValue *= 1.0 + approachRateFactor * lengthBonus;
 
             if (Mods.hasMod(this.score.mods, "BL"))
                 speedValue *= 1.12;
             else if (Mods.hasMod(this.score.mods, "HD") || Mods.hasMod(this.score.mods, "TC"))
-                speedValue *= 1.0 + 0.04 * (12.0 - this.score.difficulty.approach_rate);
+                speedValue *= 1.0 + 0.04 * (12.0 - this.approach_rate);
 
             let speedHighDeviationMultiplier = this.calculateSpeedHighDeviationNerf();
             speedValue *= speedHighDeviationMultiplier;
@@ -3715,7 +3718,7 @@
                 (relevantCountGreat * 6.0 + relevantCountOk * 2.0 + relevantCountMeh * 0.5) / (this.score.difficulty.speed_note_count * 6.0)
             );
 
-            speedValue *= (0.95 + Math.pow(this.overall_difficulty, 2) / 750.0) * Math.pow((this.score.accuracy + relevantAccuracy) / 2.0, (14.5 - this.score.difficulty.overall_difficulty) * 0.5);
+            speedValue *= (0.95 + Math.pow(this.overall_difficulty, 2) / 750.0) * Math.pow((this.score.accuracy + relevantAccuracy) / 2.0, (14.5 - this.overall_difficulty) * 0.5);
             return speedValue;
         }
 
@@ -3737,7 +3740,7 @@
             if (betterAccuracyPercentage < 0)
                 betterAccuracyPercentage = 0;
 
-            let accuracyValue = Math.pow(1.52163, this.score.difficulty.overall_difficulty) * Math.pow(betterAccuracyPercentage, 24) * 2.83;
+            let accuracyValue = Math.pow(1.52163, this.overall_difficulty) * Math.pow(betterAccuracyPercentage, 24) * 2.83;
             accuracyValue *= Math.min(1.15, Math.pow(amountHitObjectsWithAccuracy * 0.001, 0.3));
 
             if (Mods.hasMod(this.score.mods, "BL"))
