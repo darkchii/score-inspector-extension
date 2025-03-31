@@ -3179,6 +3179,9 @@
             this.aim_difficult_strain_count = parseFloat(attributes.aim_difficult_strain_count ?? 0);
             this.speed_difficult_strain_count = parseFloat(attributes.speed_difficult_strain_count ?? 0);
 
+            //taiko
+            this.mono_stamina_factor = parseFloat(attributes.mono_stamina_factor ?? 0);
+
             this.applyMods(beatmap, mods);
         }
 
@@ -3307,11 +3310,17 @@
             if (Mods.hasMod(this, "DT") || Mods.hasMod(this, "NC")) {
                 const mod = Mods.getMod(this, "DT") || Mods.getMod(this, "NC");
                 this.speed = mod?.settings?.speed_change || 1.5;
+                if (mod?.settings && !mod.settings.speed_change) {
+                    this.speed = 1.5;
+                }
             }
 
             if (Mods.hasMod(this, "HT") || Mods.hasMod(this, "DC")) {
                 const mod = Mods.getMod(this, "HT") || Mods.getMod(this, "DC");
                 this.speed = mod?.settings?.speed_change || 0.75;
+                if (mod?.settings && !mod.settings.speed_change) {
+                    this.speed = 0.75;
+                }
             }
         }
 
@@ -3366,7 +3375,7 @@
             for (const mod of mods.data) {
                 if (Mods.isModSpeedChange(mod)) {
                     let freqAdjust = 1;
-                    let tempoAdjust = mod.settings?.speed_change ?? freqAdjust;
+                    let tempoAdjust = Mods.getSpeedChangeFromMod(mod) ?? freqAdjust;
 
                     freq *= freqAdjust;
                     tempo *= tempoAdjust;
@@ -3376,6 +3385,13 @@
             rate = freq * tempo;
 
             return rate;
+        }
+
+        static getSpeedChangeFromMod(mod) {
+            if (!Mods.isModSpeedChange(mod)) return 1;
+            if (mod.settings?.speed_change) return mod.settings.speed_change;
+            if (mod.acronym === "DT" || mod.acronym === "NC") return 1.5;
+            if (mod.acronym === "HT" || mod.acronym === "DC") return 0.75;
         }
 
         static isModSpeedChange(mod) {
@@ -3514,14 +3530,38 @@
             return false;
         }
 
-        GetRanges() {
-            return this.OSU_RANGES;
+        GetRanges() { return this.OSU_RANGES; }
+    }
+
+    class TaikoHitWindows extends HitWindows {
+        constructor() {
+            super();
+
+            this.TAIKO_RANGES = [
+                new DifficultyRange(HitResult.Great, 50, 35, 20),
+                new DifficultyRange(HitResult.Ok, 120, 80, 50),
+                new DifficultyRange(HitResult.Miss, 135, 95, 70)
+            ];
         }
+
+        IsHitResultAllowed(result) {
+            switch (result) {
+                case HitResult.Great:
+                case HitResult.Ok:
+                case HitResult.Miss:
+                    return true;
+            }
+            return false;
+        }
+
+        GetRanges() { return this.TAIKO_RANGES; }
     }
 
     class PerformanceCalculator {
         constructor(score) {
             this.score = score;
+
+            this.clockRate = Mods.getClockRate(this.score.mods);
         }
 
         calculate() {
@@ -3529,10 +3569,11 @@
         }
     }
 
-    const PERFORMANCE_BASE_MULTIPLIER = 1.15;
     class OsuPerformanceCalculator extends PerformanceCalculator {
         constructor(score) {
             super(score);
+
+            const PERFORMANCE_BASE_MULTIPLIER = 1.15;
 
             this.usingClassicSliderAccuracy = false;
             if (Mods.hasMod(this.score.mods, "CL")) {
@@ -3545,7 +3586,7 @@
             this.countSliderEndsDropped = this.score.statistics.slider_tail_hit ? (this.score.beatmap.count_sliders - this.score.statistics.slider_tail_hit) : 0;
             this.countSliderTickMiss = (this.score.statistics.large_tick_miss ?? 0);
             this.totalHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0) + (this.score.statistics.miss ?? 0);
-            this.totalSuccessFullHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0);
+            this.totalSuccessfulHits = (this.score.statistics.great ?? 0) + (this.score.statistics.ok ?? 0) + (this.score.statistics.meh ?? 0);
 
             this.clockRate = Mods.getClockRate(this.score.mods);
             this.hitWindows = new OsuHitWindows();
@@ -3807,7 +3848,7 @@
         }
 
         calculateSpeedDeviation() {
-            if (this.totalSuccessFullHits === 0)
+            if (this.totalSuccessfulHits === 0)
                 return null;
 
             let speedNoteCount = this.score.difficulty.speed_note_count ?? 0;
@@ -3848,6 +3889,99 @@
 
             deviation = Math.sqrt(((relevantCountGreat + relevantCountOk) * Math.pow(deviation, 2) + relevantCountMeh * mehVariance) / (relevantCountGreat + relevantCountGreat + relevantCountMeh));
             return deviation;
+        }
+    }
+
+    class TaikoPerformanceCalculator extends PerformanceCalculator {
+        constructor(score) {
+            super(score);
+
+            this.countGreat = this.score.statistics.great ?? 0;
+            this.countOk = this.score.statistics.ok ?? 0;
+            this.countMeh = this.score.statistics.meh ?? 0;
+            this.countMiss = this.score.statistics.miss ?? 0;
+            this.totalHits = this.countGreat + this.countOk + this.countMeh + this.countMiss;
+            this.totalSuccessfulHits = this.countGreat + this.countOk + this.countMeh;
+
+            this.hitWindows = new TaikoHitWindows();
+            this.hitWindows.SetDifficulty(this.score.difficulty.base_overall_difficulty);
+
+            this.greatHitWindow = this.hitWindows.WindowFor(HitResult.Great) / this.clockRate;
+
+            this.estimatedUnstableRate = this.computeDeviationUpperBound() * 10;
+
+            if (this.totalSuccessfulHits > 0)
+                this.effectiveMissCount = Math.max(1.0, 1000.0 / this.totalSuccessfulHits) * this.countMiss;
+
+            this.isConvert = this.score.beatmap.convert;
+
+            let multiplier = 1.13;
+
+            if (Mods.hasMod(this.score.mods, "HD") && !this.isConvert)
+                multiplier *= 1.075;
+
+            if (Mods.hasMod(this.score.mods, "EZ"))
+                multiplier *= 0.95;
+
+            this.difficultyValue = this.computeDifficultyValue();
+            this.accuracyValue = this.computeAccuracyValue();
+            this.pp = Math.pow(
+                Math.pow(this.difficultyValue, 1.1) +
+                Math.pow(this.accuracyValue, 1.1), 1.0 / 1.1
+            ) * multiplier;
+        }
+
+        computeAccuracyValue() {
+            if (this.greatHitWindow <= 0 || !this.estimatedUnstableRate)
+                return 0;
+
+            let accuracyValue = Math.pow(70 / this.estimatedUnstableRate, 1.1) * Math.pow(this.score.difficulty.star_rating, 0.4) * 100;
+            let lengthBonus = Math.min(1.15, Math.pow(this.totalHits.totalHits / 1500, 0.3));
+
+            if (Mods.hasMod(this.score.mods, "FL") && Mods.hasMod(this.score.mods, "HD") && !this.isConvert)
+                accuracyValue *= Math.max(1.0, 1.05 * lengthBonus);
+
+            return accuracyValue;
+        }
+
+        computeDifficultyValue() {
+            let baseDifficulty = 5 * Math.max(1.0, this.score.difficulty.star_rating / 0.110) - 4.0;
+            let difficultyValue = Math.min(Math.pow(baseDifficulty, 3) / 69052.51, Math.pow(baseDifficulty, 2.25) / 1250.0);
+
+            difficultyValue *= 1 + 0.1 * Math.max(0, this.score.difficulty.star_rating - 10);
+
+            let lengthBonus = 1 + 0.1 * Math.min(1.0, this.totalHits / 1500.0);
+            difficultyValue *= lengthBonus;
+
+            difficultyValue *= Math.pow(0.986, this.effectiveMissCount);
+
+            if (Mods.hasMod(this.score.mods, "EZ"))
+                difficultyValue *= 0.9;
+
+            if (Mods.hasMod(this.score.mods, "HD"))
+                difficultyValue *= 1.025;
+
+            if (Mods.hasMod(this.score.mods, "FL"))
+                difficultyValue *= Math.max(1, 1.05 - Math.min(this.score.difficulty.mono_stamina_factor / 50, 1) * lengthBonus);
+
+            if (!this.estimatedUnstableRate)
+                return 0;
+
+            let accScalingExponent = 2 + this.score.difficulty.mono_stamina_factor;
+            let accScalingShift = 500 - 100 * (this.score.difficulty.mono_stamina_factor * 3);
+
+            return difficultyValue * Math.pow(DifficultyCalculationUtils.Erf(accScalingShift / (Math.sqrt(2) * this.estimatedUnstableRate)), accScalingExponent);
+        }
+
+        computeDeviationUpperBound() {
+            if (this.countGreat === 0 || this.greatHitWindow <= 0)
+                return null;
+
+            const z = 2.32634787404;
+            let n = this.totalHits;
+            let p = this.countGreat / n;
+            let pLowerBound = (n * p + z * z / 2) / (n + z * z) - z / (n + z * z) * Math.sqrt(n * p * (1 - p) + z * z / 4);
+            return this.greatHitWindow / (Math.sqrt(2) * DifficultyCalculationUtils.ErfInv(pLowerBound));
         }
     }
 
