@@ -3833,7 +3833,7 @@
             let p = relevantCountGreat / n;
 
             let pLowerBound = (n * p + z * z / 2) / (n + z * z) - z / (n + z * z) * Math.sqrt(n * p * (1 - p) + z * z / 4);
-            let deviation = this.greatHitWindow / (Math.sqrt(2) * DifficultyCalculationUtils.ErfInv(2 * pLowerBound - 1));
+            let deviation = this.greatHitWindow / (Math.sqrt(2) * DifficultyCalculationUtils.ErfInv(pLowerBound));
 
             let randomValue = Math.sqrt(2 / Math.PI) * this.okHitWindow * Math.exp(-0.5 * Math.pow(this.okHitWindow / deviation, 2)) / (deviation * DifficultyCalculationUtils.Erf(this.okHitWindow / (Math.sqrt(2) * deviation)));
 
