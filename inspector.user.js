@@ -3267,15 +3267,6 @@
         }
     }
 
-    const ar_ms_step1 = 120;
-    const ar_ms_step2 = 150;
-
-    const ar0_ms = 1800;
-    const ar5_ms = 1200;
-
-    const od_ms_step = 6;
-    const od0_ms = 79.5;
-    const od10_ms = 19.5;
     class BeatmapDifficulty {
         constructor(beatmap, mods, attributes) {
             this.star_rating = parseFloat(attributes.star_rating ?? 0);
@@ -3298,12 +3289,9 @@
         }
 
         applyMods(beatmap, mods) {
-            let speed = mods.speed;
-
             if (!this.approach_rate) {
                 let ar_multiplier = 1;
                 let ar;
-                let ar_ms;
 
                 if (Mods.hasMod(mods, "HR")) {
                     ar_multiplier = 1.4;
@@ -3349,7 +3337,6 @@
 
             if (!this.overall_difficulty) {
                 let od = 1;
-                let odms = 1;
                 let od_multiplier = 1;
 
                 if (Mods.hasMod(mods, "HR")) {
