@@ -2048,13 +2048,13 @@
             let change_score = 0;
 
             if (rank_change_data) {
-                let old_rank = parseInt(rank_change_data.old_rank);
-                let old_score = parseInt(rank_change_data.old_ranked_score);
+                let old_rank = parseInt(rank_change_data.rank);
+                let old_score = parseInt(rank_change_data.ranked_score);
                 change_rank = old_rank - current_rank;
                 change_score = current_score - old_score;
 
                 if (!rank_change_date) {
-                    rank_change_date = rank_change_data.date;
+                    rank_change_date = new Date(rank_change_data.date);
                 }
             }
 
@@ -2087,7 +2087,11 @@
             //below this, add a text that tells us from what date the score difference is from
             const dateText = document.createElement("div");
             dateText.classList.add("ranking-page-table__date");
-            dateText.textContent = `Rank changes are from ${rank_change_date}`;
+            dateText.textContent = `Rank changes are from ${rank_change_date.toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+            })}`;
             pagination.parentNode.insertBefore(dateText, pagination);
         }
     }
