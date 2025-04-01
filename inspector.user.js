@@ -1154,18 +1154,18 @@
             if (!active_mode) {
                 active_mode = "osu";
             }
-            
+
             await WaitForElement(".beatmap-basic-stats", 1000);
             await WaitForElement(".beatmap-stats-table", 1000);
-            
+
             const beatmap_basic_stats = document.getElementsByClassName("beatmap-basic-stats")[0];
             const beatmap_stats_table = document.getElementsByClassName("beatmap-stats-table")[0];
-            
+
             if (!beatmap_basic_stats || !beatmap_stats_table) {
                 console.error("Beatmap basic stats or stats table not found");
                 return;
             }
-            
+
             if (active_mode !== last_mode) {
                 removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
                 removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-aim");
@@ -1933,8 +1933,8 @@
             return;
         }
 
-        //if contains ?filter=friends, do not run
-        if (_url.includes("?filter=friends")) {
+        //if contains filters, return
+        if (_url.includes("?filter=friends") || _url.includes("?country=")) {
             return;
         }
 
