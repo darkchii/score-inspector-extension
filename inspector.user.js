@@ -20,8 +20,8 @@
 (function () {
     'use strict';
 
-    const SCORE_INSPECTOR_API = "http://localhost:3863/";
-    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    // const SCORE_INSPECTOR_API = "http://localhost:3863/";
+    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
     const IMAGE_DEFAULT_TEAM_BG = "https://cloud.kirino.sh/index.php/apps/raw/s/xn6ybB2ggC2KLcS";
     const IMAGE_ICON_SPINNER = "https://cloud.kirino.sh/index.php/apps/raw/s/4KmxzMtbEriHDXq";
