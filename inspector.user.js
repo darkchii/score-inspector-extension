@@ -1221,6 +1221,7 @@
                 //class: mod mod--DT mod--type-DifficultyIncrease
                 mod_element.classList.add("mod", `mod--${mod_data.Acronym}`, `mod--type-${mod_data.Type}`);
                 mod_element.setAttribute("data-acronym", mod_data.Acronym);
+                mod_element.setAttribute("data-title", mod_data.Name);
                 value_element.appendChild(mod_element);
             }
         }
@@ -1252,6 +1253,7 @@
         date_played_element.textContent = "achieved " + time_ago;
         const date_played_time_element = document.createElement("time");
         date_played_time_element.classList.add("js-timeago");
+        date_played_time_element.setAttribute("title", score.date_achieved);
         date_played_time_element.setAttribute("datetime", score.date_achieved);
         date_played_element.appendChild(date_played_time_element);
         user_box.appendChild(date_played_element);
@@ -1266,7 +1268,7 @@
         const country_flag_sub_element = document.createElement("span");
         country_flag_sub_element.classList.add("flag-country", "flag-country--flat");
         country_flag_sub_element.style.backgroundImage = `url(https://osu.ppy.sh/assets/images/flags/${countryCodeToUnicodeHex(user.country_code)}.svg)`;
-        country_flag_sub_element.setAttribute("original-title", user.country.name);
+        country_flag_sub_element.setAttribute("title", user.country.name);
         country_flag_sub_element.setAttribute("data-orig-title", user.country.name);
         country_flag_element.appendChild(country_flag_sub_element);
         flags_container_element.appendChild(country_flag_element);
@@ -1278,7 +1280,7 @@
             const team_flag_sub_element = document.createElement("span");
             team_flag_sub_element.classList.add("flag-team");
             team_flag_sub_element.style.backgroundImage = `url(${user.team.flag_url})`;
-            team_flag_sub_element.setAttribute("original-title", user.team.name);
+            team_flag_sub_element.setAttribute("title", user.team.name);
             team_flag_sub_element.setAttribute("data-orig-title", user.team.name);
             team_flag_element.appendChild(team_flag_sub_element);
             flags_container_element.appendChild(team_flag_element);
