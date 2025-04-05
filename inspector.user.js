@@ -1066,7 +1066,10 @@
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
             const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
-            if (days < 30) {
+            if (days <= 0) {
+                time_ago = "now";
+                time_ago_long = "now";
+            } else if (days <= 30) {
                 time_ago = `${days}d`;
                 time_ago_long = `${days} day${days > 1 ? 's' : ''} ago`;
             } else if (months < 12) {
