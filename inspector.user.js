@@ -3585,6 +3585,7 @@
                     stats.miss = 0;
             }
             stats.accuracy = this.recalculateAccuracy(stats);
+            stats.max_combo = this.beatmap.max_combo;
 
             return stats;
         }
