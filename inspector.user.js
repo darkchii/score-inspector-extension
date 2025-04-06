@@ -20,8 +20,8 @@
 (function () {
     'use strict';
 
-    // const SCORE_INSPECTOR_API = "http://localhost:3863/";
-    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    const SCORE_INSPECTOR_API = "http://localhost:3863/";
+    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
     const IMAGE_DEFAULT_TEAM_BG = "https://cloud.kirino.sh/index.php/apps/raw/s/xn6ybB2ggC2KLcS";
     const IMAGE_ICON_SPINNER = "https://cloud.kirino.sh/index.php/apps/raw/s/4KmxzMtbEriHDXq";
@@ -2120,17 +2120,19 @@
             });
 
             let data = null;
+            let total_pages = null;
             try {
                 if (response.status !== 200) {
                     throw new Error("An error occurred while fetching the data. Please try again later.");
                 }
                 data = await response.json();
+                total_pages = Number(response.headers.get("X-Total-Pages") ?? 200);
             } catch (e) {
                 scores_container.innerHTML = "An error occurred while fetching the data. Please try again later.";
                 return;
             }
 
-            scores_container.appendChild(createPagination(page, country, `/rankings/osu/${active_custom_ranking.api_path}`));
+            scores_container.appendChild(createPagination(page, country, `/rankings/osu/${active_custom_ranking.api_path}`, total_pages));
 
             const ranking_page = document.createElement("div");
             ranking_page.classList.add("ranking-page");
@@ -2171,7 +2173,8 @@
                 flagsSpan.classList.add("ranking-page-table__flags");
 
                 const countryLink = document.createElement("a");
-                countryLink.href = `/rankings/osu/performance?country=${data.country_code}`;
+                // countryLink.href = `/rankings/osu/performance?country=${data.country_code}`;
+                countryLink.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
                 countryLink.classList.add("u-contents");
 
                 const countryLinkSpan = document.createElement("span");
@@ -2228,7 +2231,7 @@
             });
 
             //another pagination at the bottom
-            scores_container.appendChild(createPagination(page, country, `/rankings/osu/${active_custom_ranking.api_path}`));
+            scores_container.appendChild(createPagination(page, country, `/rankings/osu/${active_custom_ranking.api_path}`, total_pages));
 
             // find 'a' with data-menu-target = "nav2-menu-popup-rankings"
             let nav2_menu_link_bar = document.querySelector('a[data-menu-target="nav2-menu-popup-rankings"]');
