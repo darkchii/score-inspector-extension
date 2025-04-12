@@ -760,6 +760,10 @@
                 padding: 3px;
                 box-sizing: border-box;
             }
+
+            .ranking-page-table-main {
+                gap: 5px;
+            }
         `);
 
         //check for id "osuplusSettingsBtn"
