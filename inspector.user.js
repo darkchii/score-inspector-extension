@@ -2311,6 +2311,19 @@
                     userLinks[i].removeChild(userLinks[i].children[0]);
                 }
             }
+        //else if we are on "/rankings/{mode}/team" page, mode can be any string, we don't care
+        }else if(window.location.href.includes("/rankings/") && window.location.href.includes("/team")){
+            //get element with class "sort__items"
+            const sort_items = document.getElementsByClassName("sort__items")[0];
+
+            //add a new item which redirects to our custom team rankings website
+            const sort_item_redirect = document.createElement("a");
+            sort_item_redirect.classList.add("sort__item", "sort__item--button");
+            sort_item_redirect.href = `https://kirino.sh/teams/`;
+            sort_item_redirect.target = "_blank";
+            sort_item_redirect.textContent = "More Leaderboards";
+
+            sort_items.appendChild(sort_item_redirect);
         }
     }
 
