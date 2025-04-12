@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2025-04-05.62
+// @version      2025-04-12.63
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -20,8 +20,8 @@
 (function () {
     'use strict';
 
-    const SCORE_INSPECTOR_API = "http://localhost:3863/";
-    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    // const SCORE_INSPECTOR_API = "http://localhost:3863/";
+    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
     const IMAGE_DEFAULT_TEAM_BG = "https://cloud.kirino.sh/index.php/apps/raw/s/xn6ybB2ggC2KLcS";
     const IMAGE_ICON_SPINNER = "https://cloud.kirino.sh/index.php/apps/raw/s/4KmxzMtbEriHDXq";
