@@ -2173,48 +2173,99 @@
                 tr.appendChild(td_rank);
 
                 const td_user = document.createElement("td");
-                td_user.classList.add("ranking-page-table__column", "ranking-page-table__user");
-                const userLinkParent = document.createElement("div");
-                userLinkParent.classList.add("ranking-page-table__user-link");
+                td_user.classList.add("ranking-page-table__column", "ranking-page-table__column--main");
+                tr.appendChild(td_user);
 
-                const flagsSpan = document.createElement("span");
-                flagsSpan.classList.add("ranking-page-table__flags");
+                const td_user_container = document.createElement("div");
+                td_user_container.classList.add("ranking-page-table-main");
+                td_user.appendChild(td_user_container);
 
-                const countryLink = document.createElement("a");
-                // countryLink.href = `/rankings/osu/performance?country=${data.country_code}`;
-                countryLink.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
-                countryLink.classList.add("u-contents");
+                const td_user_flag = document.createElement("div");
+                td_user_flag.classList.add("ranking-page-table-main__flag");
+                td_user_container.appendChild(td_user_flag);
 
-                const countryLinkSpan = document.createElement("span");
-                countryLinkSpan.classList.add("flag-country");
-                countryLinkSpan.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
-                countryLinkSpan.setAttribute("title", data.country_name);
-                countryLink.appendChild(countryLinkSpan);
-                flagsSpan.appendChild(countryLink);
+                const td_user_flag_contents = document.createElement("div");
+                td_user_flag_contents.classList.add("u-contents");
+                td_user_flag.appendChild(td_user_flag_contents);
+
+                const td_user_country_flag_element = document.createElement("a");
+                td_user_country_flag_element.classList.add("flag-country");
+                td_user_country_flag_element.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
+                td_user_country_flag_element.setAttribute("title", data.country_name);
+                td_user_country_flag_element.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
+                td_user_flag_contents.appendChild(td_user_country_flag_element);
 
                 if (data.team) {
-                    const teamLink = document.createElement("a");
-                    teamLink.href = `https://osu.ppy.sh/teams/${data.team.id}`;
-                    teamLink.classList.add("u-contents");
-
-                    const teamLinkSpan = document.createElement("span");
-                    teamLinkSpan.classList.add("flag-team");
-                    teamLinkSpan.style.backgroundImage = `url(${data.team.flag_url})`;
-                    teamLinkSpan.setAttribute("title", data.team.name);
-                    teamLink.appendChild(teamLinkSpan);
-                    flagsSpan.appendChild(teamLink);
+                    const td_user_team_flag_element = document.createElement("a");
+                    td_user_team_flag_element.classList.add("flag-team");
+                    td_user_team_flag_element.style.backgroundImage = `url(${data.team.flag_url})`;
+                    td_user_team_flag_element.setAttribute("title", data.team.name);
+                    td_user_team_flag_element.href = `https://osu.ppy.sh/teams/${data.team.id}`;
+                    td_user_flag_contents.appendChild(td_user_team_flag_element);
                 }
 
-                userLinkParent.appendChild(flagsSpan);
+                const td_user_card = document.createElement("a");
+                td_user_card.classList.add("ranking-page-table-main__link", "js-usercard");
+                td_user_card.href = `/users/${data.user_id}`;
+                td_user_card.setAttribute("data-user-id", data.user_id);
+                td_user_card.setAttribute("data-tooltip-position", "right center");
+                td_user_container.appendChild(td_user_card);
 
-                const userLink = document.createElement("a");
-                userLink.classList.add("ranking-page-table__user-link-text", "js-usercard");
-                userLink.href = `/users/${data.user_id}`;
-                userLink.textContent = data.username;
-                userLink.setAttribute("data-user-id", data.user_id);
-                userLinkParent.appendChild(userLink);
-                td_user.appendChild(userLinkParent);
-                tr.appendChild(td_user);
+                const td_user_icon_container = document.createElement("span");
+                td_user_icon_container.classList.add("ranking-page-table-main__flag");
+                td_user_card.appendChild(td_user_icon_container);
+
+                const td_user_icon_element = document.createElement("span");
+                td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
+                td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${data.user_id})`;
+                td_user_icon_container.appendChild(td_user_icon_element);
+
+                const td_user_name_element = document.createElement("span");
+                td_user_name_element.classList.add("ranking-page-table-main__link-text");
+                td_user_name_element.textContent = data.username;
+                td_user_card.appendChild(td_user_name_element);
+
+                // const userLinkParent = document.createElement("div");
+                // userLinkParent.classList.add("ranking-page-table__user-link");
+
+                // const flagsSpan = document.createElement("span");
+                // flagsSpan.classList.add("ranking-page-table__flags");
+
+                // const countryLink = document.createElement("a");
+                // // countryLink.href = `/rankings/osu/performance?country=${data.country_code}`;
+                // countryLink.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
+                // countryLink.classList.add("u-contents");
+
+                // const countryLinkSpan = document.createElement("span");
+                // countryLinkSpan.classList.add("flag-country");
+                // countryLinkSpan.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
+                // countryLinkSpan.setAttribute("title", data.country_name);
+                // countryLink.appendChild(countryLinkSpan);
+                // flagsSpan.appendChild(countryLink);
+
+                // if (data.team) {
+                //     const teamLink = document.createElement("a");
+                //     teamLink.href = `https://osu.ppy.sh/teams/${data.team.id}`;
+                //     teamLink.classList.add("u-contents");
+
+                //     const teamLinkSpan = document.createElement("span");
+                //     teamLinkSpan.classList.add("flag-team");
+                //     teamLinkSpan.style.backgroundImage = `url(${data.team.flag_url})`;
+                //     teamLinkSpan.setAttribute("title", data.team.name);
+                //     teamLink.appendChild(teamLinkSpan);
+                //     flagsSpan.appendChild(teamLink);
+                // }
+
+                // userLinkParent.appendChild(flagsSpan);
+
+                // const userLink = document.createElement("a");
+                // userLink.classList.add("ranking-page-table__user-link-text", "js-usercard");
+                // userLink.href = `/users/${data.user_id}`;
+                // userLink.textContent = data.username;
+                // userLink.setAttribute("data-user-id", data.user_id);
+                // userLinkParent.appendChild(userLink);
+                // td_user.appendChild(userLinkParent);
+                // tr.appendChild(td_user);
 
                 for (let attr of active_custom_ranking.attributes) {
                     const formatter = attr[0].formatter ?? ((val) => val.toLocaleString());
