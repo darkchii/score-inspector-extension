@@ -1727,7 +1727,15 @@
             const parent = card.parentElement;
             const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
             usernameElement.insertBefore(teamTag, usernameElement.childNodes[0]);
-        } else {
+        } else if(card.classList.contains("ranking-page-table-main__link")){
+            //we insert the tag inside the name span, otherwise spacing is off
+            const nameSpan = card.getElementsByClassName("ranking-page-table-main__link-text")[0];
+            if (nameSpan.getElementsByClassName("inspector_user_tag").length > 0) {
+                return;
+            }
+            console.log(nameSpan);
+            nameSpan.insertBefore(teamTag, nameSpan.childNodes[0]);
+        }else {
             if (card.getElementsByClassName("inspector_user_tag").length > 0) {
                 return;
             }
@@ -1738,8 +1746,8 @@
             }
 
             //if theres a child element of card with class "forum-user-icon", index = 1
-            const userIcon = card.getElementsByClassName("forum-user-icon")[0];
-            if (userIcon) {
+            // const userIcon = card.getElementsByClassName("forum-user-icon")[0];
+            if (card.getElementsByClassName("forum-user-icon").length > 0) {
                 index = 1;
             }
 
