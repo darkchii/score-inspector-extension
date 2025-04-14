@@ -26,6 +26,60 @@
     const IMAGE_DEFAULT_TEAM_BG = "https://cloud.kirino.sh/index.php/apps/raw/s/xn6ybB2ggC2KLcS";
     const IMAGE_ICON_SPINNER = "https://cloud.kirino.sh/index.php/apps/raw/s/4KmxzMtbEriHDXq";
 
+    //this data is used to generate both the settings container and the stored data
+    let SETTINGS_DATA = [
+        {
+            'title': 'Info',
+            'description': 'Reload the page to see the changes take effect.',
+        },
+        {
+            'title': 'Profile',
+            'internal_name': 'profile',
+            'options': [
+                {
+                    'name': 'Hide extra grades',
+                    'internal_name': 'profile_hide_extra_grades',
+                    'type': 'checkbox',
+                    'default': false,
+                    'description': 'Hide the extra grades (B, C, D)',
+                },
+            ]
+        },
+        {
+            'title': 'Teams',
+            'internal_name': 'teams',
+            'options': [
+                {
+                    'name': 'Hide tags',
+                    'internal_name': 'teams_hide_team_tags',
+                    'type': 'checkbox',
+                    'default': false,
+                    'description': 'Hide team tags',
+                },
+            ]
+        },
+        {
+            'title': 'Leaderboards',
+            'internal_name': 'leaderboards',
+            'options': [
+                {
+                    'name': 'Hide country flags',
+                    'internal_name': 'leaderboards_hide_country_flags',
+                    'type': 'checkbox',
+                    'default': false,
+                    'description': 'Hide country flags',
+                },
+                {
+                    'name': 'Hide team flags',
+                    'internal_name': 'leaderboards_hide_team_flags',
+                    'type': 'checkbox',
+                    'default': false,
+                    'description': 'Hide team flags',
+                }
+            ]
+        }
+    ]
+
     const MODE_NAMES = ["osu!", "osu!taiko", "osu!catch", "osu!mania"];
     const MODE_SLUGS = ["osu", "taiko", "catch", "mania"];
     const MODE_SLUGS_ALT = ["osu", "taiko", "fruits", "mania"];
@@ -683,8 +737,6 @@
         }
     ]
 
-    let is_osuplus_active = false;
-
     const shortNum = (number) => {
         const postfixes = ['', 'k', 'M', 'B', 't']
         let count = 0
@@ -764,12 +816,44 @@
             .ranking-page-table-main {
                 gap: 5px;
             }
+
+            .settings-button {
+                position: fixed;
+                width: 42px;
+                height: 42px;
+                right: 130px;
+                cursor: pointer;
+                z-index: 9999;
+                background: url(https://score.kirino.sh/logo192.png) no-repeat center center;
+                background-size: contain;
+                border-radius: 5px;
+                border: 1px solid hsl(var(--hsl-d5));
+            }
+
+            .settings-modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 10000;
+                cursor: pointer;
+            }
+
+            .settings-modal {
+                position: fixed;
+                min-width: 600px;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                border-radius: 5px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                background: hsl(var(--hsl-d5));
+                z-index: 10001;
+            }
         `);
 
-        //check for id "osuplusSettingsBtn"
-        if (document.getElementById("osuplusSettingsBtn")) {
-            is_osuplus_active = true;
-        }
 
         //if userpage
         if (window.location.href.includes("/users/")) {
@@ -778,12 +862,15 @@
                 .value-display--rank .value-display__value {
                     font-size: 20px;
                 }
-
+                    
                 .value-display__label {
                     font-size: 14px;
                 }
             `);
         }
+        //check for id "osuplusSettingsBtn"
+        //wait for osuplusSettingsBtn
+        createSettingsButton();
 
         if (window.location.href.includes("/rankings/") ||
             window.location.href.includes("/multiplayer/rooms/") ||
@@ -796,9 +883,152 @@
         await runScoreRankChanges();
         await runScorePage();
         await runBeatmapPage();
-        await runUsernames();
+
+        if (!GM_getValue("teams_hide_team_tags", false)) {
+            await runUsernames();
+        }
 
         IS_RUNNER_ACTIVE = false;
+    }
+
+    let active_settings = null;
+    function createSettingsButton() {
+        const element = document.createElement("div");
+        element.classList.add("settings-button");
+
+        //tooltip
+        element.setAttribute("title", "inspector settings");
+        element.setAttribute("data-tooltip", "inspector settings");
+
+        //add to body at index 0
+        document.body.insertBefore(element, document.body.firstChild);
+        element.addEventListener("click", () => {
+            //TODO: open settings menu
+            createSettingsPanel();
+        });
+    }
+
+    function createSettingsPanel() {
+        if (active_settings) {
+            active_settings.remove();
+            active_settings = null;
+        }
+
+        const overlay = document.createElement("div");
+        overlay.classList.add("settings-modal-overlay", "osu-page--account-edit");
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", () => {
+            overlay.remove();
+            active_settings?.remove();
+            active_settings = null;
+        });
+
+        const settings = document.createElement("div");
+        settings.classList.add("osu-page", "osu-page--account-edit", "settings-modal");
+        active_settings = settings;
+
+        SETTINGS_DATA.forEach((setting) => {
+            settings.appendChild(createSettingsSection(setting));
+        });
+
+        document.body.appendChild(settings);
+    }
+
+    function createSettingsSection(section) {
+        const section_container = document.createElement("div");
+        section_container.classList.add("account-edit");
+
+        const section_title_container = document.createElement("div");
+        section_title_container.classList.add("account-edit__section");
+        section_container.appendChild(section_title_container);
+
+        const section_title = document.createElement("h2");
+        section_title.classList.add("account-edit__section-title");
+
+        section_title.textContent = section.title;
+        section_title_container.appendChild(section_title);
+
+        const section_input_groups_container = document.createElement("div");
+        section_input_groups_container.classList.add("account-edit__input-groups");
+        section_container.appendChild(section_input_groups_container);
+
+        const section_input_group = document.createElement("div");
+        section_input_group.classList.add("account-edit__input-group");
+        section_input_groups_container.appendChild(section_input_group);
+
+        if (section.description) {
+            const row = document.createElement("div");
+            row.classList.add("account-edit-entry", "account-edit-entry--no-label", "js-account-edit");
+            section_input_group.appendChild(row);
+
+            const section_description = document.createElement("div");
+            section_description.classList.add("account-edit-entry__rules");
+            section_description.textContent = section.description;
+            row.appendChild(section_description);
+        }
+
+        if (section.options?.length > 0) {
+            section.options.forEach((option) => {
+                section_input_group.appendChild(createSettingsOptionRow(section, option));
+            });
+        }
+
+        return section_container;
+    }
+
+    function createSettingsOptionRow(section, setting) {
+        let option_internal_name = `${setting.internal_name}`;
+        let option_internal_value = GM_getValue(option_internal_name, setting.default);
+
+        let row_content = null;
+        switch (setting.type) {
+            case "checkbox":
+                row_content = createSettingsOptionCheckbox(setting, option_internal_name, option_internal_value);
+                break;
+        }
+
+        if (!row_content) {
+            row_content = document.createElement("div");
+            row_content.textContent = 'Something went wrong creating this option row';
+            row_content.classList.add("account-edit__input-group--error");
+        }
+
+        return row_content;
+    }
+
+    function createSettingsOptionCheckbox(setting, name, value) {
+        const row = document.createElement("div");
+        row.classList.add("account-edit-entry", "account-edit-entry--no-label", "js-account-edit");
+
+        const label = document.createElement("label");
+        label.classList.add("account-edit-entry__checkbox");
+        row.appendChild(label);
+
+        const switch_label = document.createElement("label");
+        switch_label.classList.add("osu-switch-v2");
+        label.appendChild(switch_label);
+
+        const switch_input = document.createElement("input");
+        switch_input.classList.add("osu-switch-v2__input", "js-account-edit__input");
+        switch_input.type = "checkbox";
+        switch_input.checked = value;
+        switch_label.appendChild(switch_input);
+
+        const switch_styling = document.createElement("span");
+        switch_styling.classList.add("osu-switch-v2__content");
+        switch_label.appendChild(switch_styling);
+
+        const text_label = document.createElement("span");
+        text_label.classList.add("account-edit-entry__checkbox-label");
+        text_label.textContent = setting.description;
+        label.appendChild(text_label);
+
+        switch_input.addEventListener("change", () => {
+            GM_setValue(name, switch_input.checked);
+            console.log(`[inspector] ${name} set to ${switch_input.checked}`);
+        });
+
+        return row;
     }
 
     function start() {
@@ -1588,11 +1818,6 @@
             isWorking = true;
             try {
                 await new Promise(r => setTimeout(r, 1000));
-                if (window.location.href.includes("/beatmapsets/")) {
-                    if (is_osuplus_active) {
-                        await WaitForElement('.osu-plus', 1000); //osu-plus updates leaderboards, so we wait for it in case user has it enabled
-                    }
-                }
 
                 const usercards = document.getElementsByClassName("js-usercard");
                 const usercards_big = document.getElementsByClassName("user-card");
@@ -1731,7 +1956,7 @@
             const parent = card.parentElement;
             const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
             usernameElement.insertBefore(teamTag, usernameElement.childNodes[0]);
-        } else if(card.classList.contains("ranking-page-table-main__link")){
+        } else if (card.classList.contains("ranking-page-table-main__link")) {
             //we insert the tag inside the name span, otherwise spacing is off
             const nameSpan = card.getElementsByClassName("ranking-page-table-main__link-text")[0];
             if (nameSpan.getElementsByClassName("inspector_user_tag").length > 0) {
@@ -1739,7 +1964,7 @@
             }
             console.log(nameSpan);
             nameSpan.insertBefore(teamTag, nameSpan.childNodes[0]);
-        }else {
+        } else {
             if (card.getElementsByClassName("inspector_user_tag").length > 0) {
                 return;
             }
@@ -2198,6 +2423,9 @@
                 td_user_country_flag_element.setAttribute("title", data.country_name);
                 td_user_country_flag_element.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
                 td_user_flag_contents.appendChild(td_user_country_flag_element);
+                if (GM_getValue("leaderboards_hide_country_flags", false)) {
+                    td_user_country_flag_element.style.display = "none";
+                }
 
                 if (data.team) {
                     const td_user_team_flag_element = document.createElement("a");
@@ -2206,6 +2434,9 @@
                     td_user_team_flag_element.setAttribute("title", data.team.name);
                     td_user_team_flag_element.href = `https://osu.ppy.sh/teams/${data.team.id}`;
                     td_user_flag_contents.appendChild(td_user_team_flag_element);
+                    if (GM_getValue("leaderboards_hide_team_flags", false)) {
+                        td_user_team_flag_element.style.display = "none";
+                    }
                 }
 
                 const td_user_card = document.createElement("a");
@@ -2218,11 +2449,6 @@
                 const td_user_icon_container = document.createElement("span");
                 td_user_icon_container.classList.add("ranking-page-table-main__flag");
                 td_user_card.appendChild(td_user_icon_container);
-
-                const td_user_icon_element = document.createElement("span");
-                td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
-                td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${data.user_id})`;
-                td_user_icon_container.appendChild(td_user_icon_element);
 
                 const td_user_name_element = document.createElement("span");
                 td_user_name_element.classList.add("ranking-page-table-main__link-text");
@@ -2263,6 +2489,26 @@
             let nav2_menu_link_bar_span_new = document.createElement("span");
             nav2_menu_link_bar_span_new.classList.add("nav2__menu-link-bar", "u-section--bg-normal");
             nav2_menu_link_bar_span.appendChild(nav2_menu_link_bar_span_new);
+        } else {
+            if (GM_getValue("leaderboards_hide_country_flags", false)) {
+                const country_flags = document.getElementsByClassName("flag-country");
+                for (let i = 0; i < country_flags.length; i++) {
+                    let element = country_flags[i].closest(".ranking-page-table-main__flag");
+                    if (element?.classList.contains("ranking-page-table-main__flag")) {
+                        element.style.display = "none";
+                    }
+                }
+            }
+
+            if (GM_getValue("leaderboards_hide_team_flags", false)) {
+                const team_flags = document.getElementsByClassName("flag-team");
+                for (let i = 0; i < team_flags.length; i++) {
+                    let element = team_flags[i].closest(".ranking-page-table-main__flag");
+                    if (element?.classList.contains("ranking-page-table-main__flag")) {
+                        element.style.display = "none";
+                    }
+                }
+            }
         }
 
         // const active_ranking = lb_page_nav_items.find(item => item.link.replace("{mode}", mode) === url);
@@ -2315,8 +2561,8 @@
                     userLinks[i].removeChild(userLinks[i].children[0]);
                 }
             }
-        //else if we are on "/rankings/{mode}/team" page, mode can be any string, we don't care
-        }else if(window.location.href.includes("/rankings/") && window.location.href.includes("/team")){
+            //else if we are on "/rankings/{mode}/team" page, mode can be any string, we don't care
+        } else if (window.location.href.includes("/rankings/") && window.location.href.includes("/team")) {
             //get element with class "sort__items"
             const sort_items = document.getElementsByClassName("sort__items")[0];
 
@@ -2618,7 +2864,7 @@
             setOrCreateCoeBannerElement(data.coe);
         }
 
-        if (data.team) {
+        if (!GM_getValue("teams_hide_team_tags", false) && data.team) {
             setOrCreateUserTeamTagElement(data.team);
             // setOrCreateTeamBannerElement(data.team);
         }
@@ -2816,60 +3062,63 @@
         //we follow the structure to add B, C and D ranks
         var parent = document.getElementsByClassName("profile-rank-count")[0];
 
-        //create the elements if they don't exist
-        const ranks = ["B", "C", "D"];
-        ranks.forEach(rank => {
-            //if element exists, delete it
-            if (document.getElementById(`inspector_elm_${rank.toLowerCase()}`)) {
-                document.getElementById(`inspector_elm_${rank.toLowerCase()}`).remove();
-            }
+        if(!GM_getValue("profile_hide_extra_grades", false)){
+            //create the elements if they don't exist
+            const ranks = ["B", "C", "D"];
+            ranks.forEach(rank => {
+                //if element exists, delete it
+                if (document.getElementById(`inspector_elm_${rank.toLowerCase()}`)) {
+                    document.getElementById(`inspector_elm_${rank.toLowerCase()}`).remove();
+                }
+    
+                var b = document.createElement("div");
+                b.id = `inspector_elm_${rank.toLowerCase()}`;
+                var div = document.createElement("div");
+                div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
+                b.appendChild(div);
+                let rankText = null;
+                if (data.user?.[`${rank.toLowerCase()}_count`] !== undefined && !isNaN(data.user?.[`${rank.toLowerCase()}_count`])) {
+                    rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
+                } else {
+                    rankText = document.createTextNode('-');
+    
+                    //add a tooltip to explain the rank is not available
+                    b.setAttribute("data-html-title", `<div>Data not available</div>`);
+                    b.setAttribute("title", "");
+                }
+                b.appendChild(rankText);
+                parent.appendChild(b);
+            });
+    
+            //for all XH, X, SH, S, A ranks, we set a tooltip display alt values
+            ["XH", "X", "SH", "S", "A"].forEach(rank => {
+                var rankElement = document.getElementsByClassName(`score-rank--${rank}`)[0];
+                if (rankElement) {
+                    let _rank = rank.toLowerCase();
+                    if (_rank === 'xh') _rank = 'ssh';
+                    if (_rank === 'x') _rank = 'ss';
+                    let val = Number(data.user?.[`alt_${_rank}_count`]).toLocaleString();
+                    if (isNaN(Number(data.user?.[`alt_${_rank}_count`]))) val = 'Data not available';
+                    rankElement.setAttribute("data-html-title", `
+                        osu!alt: ${val}
+                        `);
+                    rankElement.setAttribute("title", "");
+                }
+            });
+    
+            //find the parent of score-rank--A
+            var aParent = document.getElementsByClassName("score-rank--A")[0].parentNode;
+    
+            //add an element before aParent to force the next elements to be on the next line
+            var br = document.createElement("div");
+            //flex expand
+            br.style.flexBasis = "100%";
+            aParent.parentNode.insertBefore(br, aParent);
+    
+            //align all the elements to the right
+            parent.style.justifyContent = "flex-end";
+        }
 
-            var b = document.createElement("div");
-            b.id = `inspector_elm_${rank.toLowerCase()}`;
-            var div = document.createElement("div");
-            div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
-            b.appendChild(div);
-            let rankText = null;
-            if (data.user?.[`${rank.toLowerCase()}_count`] !== undefined && !isNaN(data.user?.[`${rank.toLowerCase()}_count`])) {
-                rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
-            } else {
-                rankText = document.createTextNode('-');
-
-                //add a tooltip to explain the rank is not available
-                b.setAttribute("data-html-title", `<div>Data not available</div>`);
-                b.setAttribute("title", "");
-            }
-            b.appendChild(rankText);
-            parent.appendChild(b);
-        });
-
-        //for all XH, X, SH, S, A ranks, we set a tooltip display alt values
-        ["XH", "X", "SH", "S", "A"].forEach(rank => {
-            var rankElement = document.getElementsByClassName(`score-rank--${rank}`)[0];
-            if (rankElement) {
-                let _rank = rank.toLowerCase();
-                if (_rank === 'xh') _rank = 'ssh';
-                if (_rank === 'x') _rank = 'ss';
-                let val = Number(data.user?.[`alt_${_rank}_count`]).toLocaleString();
-                if (isNaN(Number(data.user?.[`alt_${_rank}_count`]))) val = 'Data not available';
-                rankElement.setAttribute("data-html-title", `
-                    osu!alt: ${val}
-                    `);
-                rankElement.setAttribute("title", "");
-            }
-        });
-
-        //find the parent of score-rank--A
-        var aParent = document.getElementsByClassName("score-rank--A")[0].parentNode;
-
-        //add an element before aParent to force the next elements to be on the next line
-        var br = document.createElement("div");
-        //flex expand
-        br.style.flexBasis = "100%";
-        aParent.parentNode.insertBefore(br, aParent);
-
-        //align all the elements to the right
-        parent.style.justifyContent = "flex-end";
 
         //grades done
         const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
