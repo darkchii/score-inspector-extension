@@ -96,6 +96,13 @@
                     'type': 'checkbox',
                     'default': true,
                     'description': 'Show team flags',
+                },
+                {
+                    'name': 'Show avatars',
+                    'internal_name': 'leaderboards_show_avatars',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Show avatars',
                 }
             ]
         },
@@ -2609,9 +2616,17 @@
                 td_user_card.setAttribute("data-tooltip-position", "right center");
                 td_user_container.appendChild(td_user_card);
 
-                const td_user_icon_container = document.createElement("span");
-                td_user_icon_container.classList.add("ranking-page-table-main__flag");
-                td_user_card.appendChild(td_user_icon_container);
+                
+                if(GM_getValue("leaderboards_show_avatars", true)) {
+                    const td_user_icon_container = document.createElement("span");
+                    td_user_icon_container.classList.add("ranking-page-table-main__flag");
+                    td_user_card.appendChild(td_user_icon_container);
+
+                    const td_user_icon_element = document.createElement("span");
+                    td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
+                    td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${data.user_id})`;
+                    td_user_icon_container.appendChild(td_user_icon_element);
+                }
 
                 const td_user_name_element = document.createElement("span");
                 td_user_name_element.classList.add("ranking-page-table-main__link-text");
@@ -2701,6 +2716,37 @@
                         user_td_children[0].remove();
                     }
                 }
+            }
+
+            if(GM_getValue("leaderboards_show_avatars", true) && valid_rankings.includes(ranking)) {
+                const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES[ranking]();
+                const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
+
+                const table = document.getElementsByClassName("ranking-page-table")[0];
+                const thead = table.getElementsByTagName("thead")[0];
+                const thead_tr = thead.getElementsByTagName("tr")[0];
+                const tbody = table.getElementsByTagName("tbody")[0];
+
+                const rows = tbody.getElementsByTagName("tr");
+                for (let i = 0; i < rows.length; i++) {
+                    const td_user = rows[i].children[USER_INDEX];
+                    const user_card = td_user.getElementsByClassName("js-usercard")[0];
+                    const user_id = user_card.getAttribute("data-user-id");
+
+                    const td_user_container = td_user.children[0];
+
+                    const td_user_icon_container = document.createElement("span");
+                    td_user_icon_container.classList.add("ranking-page-table-main__flag");
+                    // td_user_container.appendChild(td_user_icon_container);
+                    //at front
+                    user_card.insertBefore(td_user_icon_container, user_card.children[0]);
+                    
+                    const td_user_icon_element = document.createElement("span");
+                    td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
+                    td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${user_id})`;
+                    td_user_icon_container.appendChild(td_user_icon_element);
+                }
+
             }
 
             if (!GM_getValue("leaderboards_show_country_flags", true)) {
