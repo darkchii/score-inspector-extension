@@ -37,11 +37,11 @@
             'internal_name': 'profile',
             'options': [
                 {
-                    'name': 'Hide extra grades',
-                    'internal_name': 'profile_hide_extra_grades',
+                    'name': 'Show extra grades',
+                    'internal_name': 'profile_show_extra_grades',
                     'type': 'checkbox',
-                    'default': false,
-                    'description': 'Hide the extra grades (B, C, D)',
+                    'default': true,
+                    'description': 'Show extra grades (B, C, D)',
                 },
             ]
         },
@@ -50,11 +50,11 @@
             'internal_name': 'teams',
             'options': [
                 {
-                    'name': 'Hide tags',
-                    'internal_name': 'teams_hide_team_tags',
+                    'name': 'Show team tags',
+                    'internal_name': 'teams_show_team_tags',
                     'type': 'checkbox',
-                    'default': false,
-                    'description': 'Hide team tags',
+                    'default': true,
+                    'description': 'Show team tags',
                 },
             ]
         },
@@ -63,19 +63,54 @@
             'internal_name': 'leaderboards',
             'options': [
                 {
-                    'name': 'Hide country flags',
-                    'internal_name': 'leaderboards_hide_country_flags',
+                    'name': 'Replace accuracy with completion percentage',
+                    'internal_name': 'leaderboards_replace_accuracy',
                     'type': 'checkbox',
-                    'default': false,
-                    'description': 'Hide country flags',
+                    'default': true,
+                    'description': 'Replace accuracy with completion percentage (ranked score, standard only)',
                 },
                 {
-                    'name': 'Hide team flags',
-                    'internal_name': 'leaderboards_hide_team_flags',
+                    'name': 'Show changes in score and score rank',
+                    'internal_name': 'leaderboards_show_score_changes',
                     'type': 'checkbox',
-                    'default': false,
-                    'description': 'Hide team flags',
+                    'default': true,
+                    'description': 'Show changes in score and score rank',
+                },
+                {
+                    'name': 'Create seperate flags column',
+                    'internal_name': 'leaderboards_seperate_flags_column',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Create a separate column for flags',
+                },
+                {
+                    'name': 'Show country flags',
+                    'internal_name': 'leaderboards_show_country_flags',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Show country flags',
+                },
+                {
+                    'name': 'Show team flags',
+                    'internal_name': 'leaderboards_show_team_flags',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Show team flags',
                 }
+            ]
+        },
+        {
+            'title': 'Score Page',
+            'internal_name': 'score_page',
+            'description': 'This is the page where you view an individual score',
+            'options': [
+                {
+                    'name': 'Show user scores',
+                    'internal_name': 'score_page_show_user_scores',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Show user scores',
+                },
             ]
         }
     ]
@@ -737,6 +772,92 @@
         }
     ]
 
+    const OFFICIAL_LEADERBOARD_STRUCTURES = {
+        'performance': () => {
+            //its dynamic based on some settings so its a function
+            return [
+                "pos",
+                'change',
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "accuracy", //or "completion", but same position
+                "play_count",
+                "performance",
+                "ss",
+                "s",
+                "a",
+            ].filter(Boolean);
+        },
+        'score': () => {
+            //its dynamic based on some settings so its a function
+            return [
+                "pos",
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "accuracy", //or "completion", but same position
+                "play_count",
+                "total_score",
+                "ranked_score",
+                "ss",
+                "s",
+                "a",
+            ].filter(Boolean);
+        },
+        'rooms': () => {
+            return [
+                "pos",
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "accuracy",
+                "play_count",
+                "total_score"
+            ].filter(Boolean);
+        },
+        'daily-challenge': () => {
+            return [
+                "pos",
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "accuracy",
+                "play_count",
+                "total_score"
+            ].filter(Boolean);
+        },
+        'seasons': () => {
+            return [
+                "pos",
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "total_score",
+                "division",
+            ].filter(Boolean);
+        },
+        'charts': () => {
+            return [
+                "pos",
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "accuracy",
+                "play_count",
+                "total_score",
+                "ranked_score",
+                "ss",
+                "s",
+                "a",
+            ].filter(Boolean);
+        },
+        'kudosu': () => {
+            return [
+                "pos",
+                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
+                "user",
+                "earned",
+                "available",
+                "spent",
+            ].filter(Boolean);
+        }
+    }
+
     const shortNum = (number) => {
         const postfixes = ['', 'k', 'M', 'B', 't']
         let count = 0
@@ -852,6 +973,10 @@
                 background: hsl(var(--hsl-d5));
                 z-index: 10001;
             }
+
+            .profile-detail__values {
+                gap: 15px;
+            }
         `);
 
 
@@ -875,16 +1000,20 @@
         if (window.location.href.includes("/rankings/") ||
             window.location.href.includes("/multiplayer/rooms/") ||
             window.location.href.includes("/seasons/")) {
-            await handleLeaderboardPage();
+            await handleLeaderboardPage(); //Run this BEFORE score rank stuff etc, since those check for added columns and index offsets
         }
 
         await runUserPage();
-        await runScoreRankCompletionPercentages();
-        await runScoreRankChanges();
+        if (GM_getValue("leaderboards_replace_accuracy", true)) {
+            await runScoreRankCompletionPercentages();
+        }
+        if (GM_getValue("leaderboards_show_score_changes", true)) {
+            await runScoreRankChanges();
+        }
         await runScorePage();
         await runBeatmapPage();
 
-        if (!GM_getValue("teams_hide_team_tags", false)) {
+        if (GM_getValue("teams_show_team_tags", true)) {
             await runUsernames();
         }
 
@@ -893,8 +1022,12 @@
 
     let active_settings = null;
     function createSettingsButton() {
+        //make sure it exists, if it does, do nothing
+        if (document.getElementById("inspector_settings_button")) return;
+
         const element = document.createElement("div");
         element.classList.add("settings-button");
+        element.id = "inspector_settings_button";
 
         //tooltip
         element.setAttribute("title", "inspector settings");
@@ -1184,102 +1317,104 @@
             }
             score_stats_group_row_top.appendChild(createStat("pp if fc", `${formatNumber(active_score.calculator_fc?.pp, 2)}`, true, `Estimated performance at ${formatNumber(active_score.fc_statistics?.accuracy * 100, 2)}% FC`));
 
-            let ruleset_scores = {};
-            let ruleset_beatmaps = {};
+            if (GM_getValue("score_page_show_user_scores", true)) {
+                let ruleset_scores = {};
+                let ruleset_beatmaps = {};
 
-            //get scores for all rulesets
-            for (const ruleset of MODE_SLUGS_ALT) {
-                const data = await getUserBeatmapScores(active_score.user_id, active_score.beatmap_id, ruleset);
-                const _scores = data.scores;
-                const _beatmap = data.beatmap;
-                const _attributes = data.attributes;
-
-                //sort by pp desc
-                _scores.sort((a, b) => {
-                    return b.pp - a.pp;
-                });
-
-                if (_scores && _scores.length > 0) {
-                    ruleset_scores[ruleset] = _scores;
-                }
-
-                if (_beatmap) {
-                    ruleset_beatmaps[ruleset] = {
-                        ..._beatmap,
-                        attributes: _attributes
-                    };
-                }
-            }
-
-            //find the element with class "score-stats"
-            const score_stats = document.getElementsByClassName("score-stats")[0];
-
-            //insert an empty div after the score-stats element (this will contain all extra scores)
-            // const extra_scores_div = document.createElement("div");
-            let extra_scores_div = document.getElementById("score-stats__group-row--extra-scores");
-            if (extra_scores_div) {
-                extra_scores_div.remove();
-            }
-            extra_scores_div = document.createElement("div");
-            extra_scores_div.classList.add("score-stats");
-            extra_scores_div.id = "score-stats__group-row--extra-scores";
-            //force full width
-            extra_scores_div.style.width = "100%";
-
-            //insert
-            score_stats.parentNode.insertBefore(extra_scores_div, score_stats.nextSibling);
-
-            //if scores is empty, just insert a message
-            if (!ruleset_scores || Object.keys(ruleset_scores).length === 0) {
-                const no_scores = document.createElement("div");
-                no_scores.classList.add("no-scores");
-                no_scores.textContent = "User has no scores on this beatmap";
-                extra_scores_div.appendChild(no_scores);
-                return;
-            } else {
-                const proxy_scoreboard_element = document.createElement("div");
-                proxy_scoreboard_element.classList.add("beatmapset-scoreboard");
-                proxy_scoreboard_element.style.width = "100%";
-
-                extra_scores_div.appendChild(proxy_scoreboard_element);
+                //get scores for all rulesets
                 for (const ruleset of MODE_SLUGS_ALT) {
-                    if (!ruleset_scores[ruleset]) continue;
-                    const ruleset_id = MODE_SLUGS_ALT.indexOf(ruleset);
+                    const data = await getUserBeatmapScores(active_score.user_id, active_score.beatmap_id, ruleset);
+                    const _scores = data.scores;
+                    const _beatmap = data.beatmap;
+                    const _attributes = data.attributes;
 
-                    const proxy_scoreboard_item_element = document.createElement("div");
-                    proxy_scoreboard_item_element.classList.add("beatmapset-scoreboard__main");
+                    //sort by pp desc
+                    _scores.sort((a, b) => {
+                        return b.pp - a.pp;
+                    });
 
-                    const ruleset_scores_container = document.createElement("div");
-                    ruleset_scores_container.classList.add("beatmap-scoreboard-top__item");
-                    proxy_scoreboard_item_element.appendChild(ruleset_scores_container);
+                    if (_scores && _scores.length > 0) {
+                        ruleset_scores[ruleset] = _scores;
+                    }
 
-                    // ruleset_scores_container.innerHTML = `<h3>${ruleset}</h3>`;
-                    // extra_scores_div.appendChild(ruleset_scores_container);
-                    const ruleset_scores_header = document.createElement("h4");
-                    ruleset_scores_header.classList.add("ruleset-scores-header");
+                    if (_beatmap) {
+                        ruleset_beatmaps[ruleset] = {
+                            ..._beatmap,
+                            attributes: _attributes
+                        };
+                    }
+                }
 
-                    ruleset_scores_header.appendChild(getRulesetIconSpan(ruleset_id));
+                //find the element with class "score-stats"
+                const score_stats = document.getElementsByClassName("score-stats")[0];
 
-                    const ruleset_scores_header_text = document.createElement("span");
-                    ruleset_scores_header_text.textContent = ` ${ruleset}`;
-                    ruleset_scores_header.appendChild(ruleset_scores_header_text);
+                //insert an empty div after the score-stats element (this will contain all extra scores)
+                // const extra_scores_div = document.createElement("div");
+                let extra_scores_div = document.getElementById("score-stats__group-row--extra-scores");
+                if (extra_scores_div) {
+                    extra_scores_div.remove();
+                }
+                extra_scores_div = document.createElement("div");
+                extra_scores_div.classList.add("score-stats");
+                extra_scores_div.id = "score-stats__group-row--extra-scores";
+                //force full width
+                extra_scores_div.style.width = "100%";
 
-                    ruleset_scores_container.appendChild(ruleset_scores_header);
-                    proxy_scoreboard_element.appendChild(proxy_scoreboard_item_element);
+                //insert
+                score_stats.parentNode.insertBefore(extra_scores_div, score_stats.nextSibling);
 
-                    // const score_element = getUserScoreElement(scores[ruleset][0]);
-                    // for (const [index, score] of scores[ruleset]) {
-                    for (const [index, score] of ruleset_scores[ruleset].entries()) {
-                        const score_element = getUserScoreElement(score, active_score.user, ruleset_beatmaps[ruleset], index);
-                        if (!score_element) continue;
+                //if scores is empty, just insert a message
+                if (!ruleset_scores || Object.keys(ruleset_scores).length === 0) {
+                    const no_scores = document.createElement("div");
+                    no_scores.classList.add("no-scores");
+                    no_scores.textContent = "User has no scores on this beatmap";
+                    extra_scores_div.appendChild(no_scores);
+                    return;
+                } else {
+                    const proxy_scoreboard_element = document.createElement("div");
+                    proxy_scoreboard_element.classList.add("beatmapset-scoreboard");
+                    proxy_scoreboard_element.style.width = "100%";
 
-                        if (active_score.id == score.id) {
-                            //add a subtle gold glow to the score element
-                            //not a class, use inline style
-                            score_element.style.boxShadow = "0 0 10px 5px rgba(255, 215, 0, 0.5)";
+                    extra_scores_div.appendChild(proxy_scoreboard_element);
+                    for (const ruleset of MODE_SLUGS_ALT) {
+                        if (!ruleset_scores[ruleset]) continue;
+                        const ruleset_id = MODE_SLUGS_ALT.indexOf(ruleset);
+
+                        const proxy_scoreboard_item_element = document.createElement("div");
+                        proxy_scoreboard_item_element.classList.add("beatmapset-scoreboard__main");
+
+                        const ruleset_scores_container = document.createElement("div");
+                        ruleset_scores_container.classList.add("beatmap-scoreboard-top__item");
+                        proxy_scoreboard_item_element.appendChild(ruleset_scores_container);
+
+                        // ruleset_scores_container.innerHTML = `<h3>${ruleset}</h3>`;
+                        // extra_scores_div.appendChild(ruleset_scores_container);
+                        const ruleset_scores_header = document.createElement("h4");
+                        ruleset_scores_header.classList.add("ruleset-scores-header");
+
+                        ruleset_scores_header.appendChild(getRulesetIconSpan(ruleset_id));
+
+                        const ruleset_scores_header_text = document.createElement("span");
+                        ruleset_scores_header_text.textContent = ` ${ruleset}`;
+                        ruleset_scores_header.appendChild(ruleset_scores_header_text);
+
+                        ruleset_scores_container.appendChild(ruleset_scores_header);
+                        proxy_scoreboard_element.appendChild(proxy_scoreboard_item_element);
+
+                        // const score_element = getUserScoreElement(scores[ruleset][0]);
+                        // for (const [index, score] of scores[ruleset]) {
+                        for (const [index, score] of ruleset_scores[ruleset].entries()) {
+                            const score_element = getUserScoreElement(score, active_score.user, ruleset_beatmaps[ruleset], index);
+                            if (!score_element) continue;
+
+                            if (active_score.id == score.id) {
+                                //add a subtle gold glow to the score element
+                                //not a class, use inline style
+                                score_element.style.boxShadow = "0 0 10px 5px rgba(255, 215, 0, 0.5)";
+                            }
+
+                            ruleset_scores_container.appendChild(score_element);
                         }
-
-                        ruleset_scores_container.appendChild(score_element);
                     }
                 }
             }
@@ -1817,8 +1952,6 @@
 
             isWorking = true;
             try {
-                await new Promise(r => setTimeout(r, 1000));
-
                 const usercards = document.getElementsByClassName("js-usercard");
                 const usercards_big = document.getElementsByClassName("user-card");
                 //remove found elements that already have a (nested) child with class "inspector_user_tag"
@@ -1837,6 +1970,8 @@
             } catch (err) {
                 console.error(err);
             }
+
+            await new Promise(r => setTimeout(r, 1000));
             isWorking = false;
         }
         await _func();
@@ -2299,15 +2434,26 @@
         url = url.replace("https://osu.ppy.sh", "");
 
         let mode = 'osu';
+        let ranking = null;
         // /rankings/osu/...
+        let mode_index = 2;
+        let ranking_index = 3;
         // /rankings/taiko/... we need to get the mode from the url
         if (url.includes("/rankings/")) {
-            mode = url.split("/")[2];
-
+            mode = url.split("/")[mode_index];
             if (!MODE_SLUGS_ALT.includes(mode)) {
                 mode = 'osu';
+                ranking_index = mode_index;
             }
+
+        } else if (url.includes("/multiplayer/rooms/")) {
+            ranking_index = 1;
+        } else if (url.includes("/seasons/")){
+            ranking_index = 1;
         }
+        ranking = url.split("/")[ranking_index];
+
+        console.log(`Ranking: ${ranking}`);
 
         const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
         // const active_custom_ranking = lb_page_nav_items.find(item => item.link === url);
@@ -2383,6 +2529,7 @@
             ranking_table.appendChild(ranking_thead);
 
             ranking_thead.appendChild(createTableHeaderItem());
+            if (GM_getValue("leaderboards_seperate_flags_column", true)) { ranking_thead.appendChild(createTableHeaderItem()); }
             ranking_thead.appendChild(createTableHeaderItem());
 
             for (let attr of active_custom_ranking.attributes) {
@@ -2401,9 +2548,17 @@
                 td_rank.textContent = `#${i + 1 + (page - 1) * 50}`;
                 tr.appendChild(td_rank);
 
+                let td_flags = null;
+                if (GM_getValue("leaderboards_seperate_flags_column", true)) {
+                    td_flags = document.createElement("td");
+                    td_flags.classList.add("ranking-page-table__column", "ranking-page-table__column--flag");
+                    tr.appendChild(td_flags);
+                }
+
                 const td_user = document.createElement("td");
                 td_user.classList.add("ranking-page-table__column", "ranking-page-table__column--main");
                 tr.appendChild(td_user);
+
 
                 const td_user_container = document.createElement("div");
                 td_user_container.classList.add("ranking-page-table-main");
@@ -2411,7 +2566,15 @@
 
                 const td_user_flag = document.createElement("div");
                 td_user_flag.classList.add("ranking-page-table-main__flag");
-                td_user_container.appendChild(td_user_flag);
+                // td_user_container.appendChild(td_user_flag);
+                if (td_flags) {
+                    const td_flags_container = document.createElement("div");
+                    td_flags_container.classList.add("ranking-page-table-main");
+                    td_flags_container.appendChild(td_user_flag);
+                    td_flags.appendChild(td_flags_container);
+                } else {
+                    td_user_container.appendChild(td_user_flag);
+                }
 
                 const td_user_flag_contents = document.createElement("div");
                 td_user_flag_contents.classList.add("u-contents");
@@ -2423,7 +2586,7 @@
                 td_user_country_flag_element.setAttribute("title", data.country_name);
                 td_user_country_flag_element.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
                 td_user_flag_contents.appendChild(td_user_country_flag_element);
-                if (GM_getValue("leaderboards_hide_country_flags", false)) {
+                if (!GM_getValue("leaderboards_show_country_flags", true)) {
                     td_user_country_flag_element.style.display = "none";
                 }
 
@@ -2434,7 +2597,7 @@
                     td_user_team_flag_element.setAttribute("title", data.team.name);
                     td_user_team_flag_element.href = `https://osu.ppy.sh/teams/${data.team.id}`;
                     td_user_flag_contents.appendChild(td_user_team_flag_element);
-                    if (GM_getValue("leaderboards_hide_team_flags", false)) {
+                    if (!GM_getValue("leaderboards_show_team_flags", true)) {
                         td_user_team_flag_element.style.display = "none";
                     }
                 }
@@ -2490,7 +2653,57 @@
             nav2_menu_link_bar_span_new.classList.add("nav2__menu-link-bar", "u-section--bg-normal");
             nav2_menu_link_bar_span.appendChild(nav2_menu_link_bar_span_new);
         } else {
-            if (GM_getValue("leaderboards_hide_country_flags", false)) {
+            const valid_rankings = ["performance", "score", "rooms", "daily-challenge", "seasons", "charts", "kudosu"];
+            if (GM_getValue("leaderboards_seperate_flags_column", true) && valid_rankings.includes(ranking)) {
+                const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES[ranking]();
+
+                const FLAGS_INDEX = LEADERBOARD_STRUCTURE.indexOf("flags");
+                const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
+
+                //get thead
+                const table = document.getElementsByClassName("ranking-page-table")[0];
+                const thead = table.getElementsByTagName("thead")[0];
+                const thead_tr = thead.getElementsByTagName("tr")[0];
+                const tbody = table.getElementsByTagName("tbody")[0];
+
+                //after the first element in tbody
+                thead_tr.insertBefore(createTableHeaderItem(), thead_tr.children[FLAGS_INDEX]);
+
+                //go through each row
+                const rows = tbody.getElementsByTagName("tr");
+                for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i];
+                    //for now, just add a blank td
+                    const td_flags = document.createElement("td");
+                    td_flags.classList.add("ranking-page-table__column", "ranking-page-table__column--flag");
+                    row.insertBefore(td_flags, row.children[FLAGS_INDEX]);
+
+                    //create element ranking-page-table-main
+                    const td_user_flag = document.createElement("div");
+                    td_user_flag.classList.add("ranking-page-table-main");
+                    td_flags.appendChild(td_user_flag);
+
+                    const td_user_flag_contents = document.createElement("div");
+                    td_user_flag_contents.classList.add("u-contents");
+                    td_user_flag.appendChild(td_user_flag_contents);
+
+                    //find all elements with class ranking-page-table-main__flag in the user column, and move them to the new td
+                    const user_td = row.children[USER_INDEX];
+                    const user_td_children = user_td.getElementsByClassName("ranking-page-table-main__flag");
+                    // append them all to td_user_flag_contents
+                    for (let j = 0; j < user_td_children.length; j++) {
+                        console.log(`Moving `, user_td_children[j])
+                        td_user_flag_contents.appendChild(user_td_children[j].cloneNode(true)); //for some reason if we don't clone, it doesn't work properly
+                    }
+
+                    //remove the original elements from the user column
+                    while (user_td_children.length > 0) {
+                        user_td_children[0].remove();
+                    }
+                }
+            }
+
+            if (!GM_getValue("leaderboards_show_country_flags", true)) {
                 const country_flags = document.getElementsByClassName("flag-country");
                 for (let i = 0; i < country_flags.length; i++) {
                     let element = country_flags[i].closest(".ranking-page-table-main__flag");
@@ -2500,7 +2713,7 @@
                 }
             }
 
-            if (GM_getValue("leaderboards_hide_team_flags", false)) {
+            if (!GM_getValue("leaderboards_show_team_flags", true)) {
                 const team_flags = document.getElementsByClassName("flag-team");
                 for (let i = 0; i < team_flags.length; i++) {
                     let element = team_flags[i].closest(".ranking-page-table-main__flag");
@@ -2605,11 +2818,15 @@
 
         const headerCells = headerRow.getElementsByTagName('th');
 
-        const RANK_INDEX = 0;
-        const USER_INDEX = 1;
-        const RANK_CHANGE_INDEX = 1; //this gets inserted at index 1
-        const SCORE_INDEX = 5;
-        const SCORE_CHANGE_INDEX = 8;
+        let LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES.score();
+
+        const RANK_INDEX = LEADERBOARD_STRUCTURE.indexOf("pos");
+        const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
+        const RANK_CHANGE_INDEX = RANK_INDEX + 1;
+        const SCORE_INDEX = LEADERBOARD_STRUCTURE.indexOf("ranked_score");
+        const SCORE_CHANGE_OFFSET = 2;
+        const SCORE_CHANGE_INDEX = SCORE_INDEX + 1 + SCORE_CHANGE_OFFSET;
+        console.log(`RANK_INDEX: ${RANK_INDEX}, USER_INDEX: ${USER_INDEX}, RANK_CHANGE_INDEX: ${RANK_CHANGE_INDEX}, SCORE_INDEX: ${SCORE_INDEX}, SCORE_CHANGE_INDEX: ${SCORE_CHANGE_INDEX}`);
 
         let rank_change_date = null;
 
@@ -2769,9 +2986,11 @@
             const rows = tbody.getElementsByTagName('tr');
             const headerRow = thead.getElementsByTagName('tr')[0];
 
+            const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES.score();
+
             //accuracy row is index 2
-            const USER_INDEX = 1;
-            const ACCURACY_INDEX = 2;
+            const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
+            const ACCURACY_INDEX = LEADERBOARD_STRUCTURE.indexOf("accuracy");
 
             //change header to "Completion"
             const headerCells = headerRow.getElementsByTagName('th');
@@ -2864,7 +3083,7 @@
             setOrCreateCoeBannerElement(data.coe);
         }
 
-        if (!GM_getValue("teams_hide_team_tags", false) && data.team) {
+        if (GM_getValue("teams_show_team_tags", true) && data.team) {
             setOrCreateUserTeamTagElement(data.team);
             // setOrCreateTeamBannerElement(data.team);
         }
@@ -3062,7 +3281,7 @@
         //we follow the structure to add B, C and D ranks
         var parent = document.getElementsByClassName("profile-rank-count")[0];
 
-        if(!GM_getValue("profile_hide_extra_grades", false)){
+        if (GM_getValue("profile_show_extra_grades", true)) {
             //create the elements if they don't exist
             const ranks = ["B", "C", "D"];
             ranks.forEach(rank => {
@@ -3070,7 +3289,7 @@
                 if (document.getElementById(`inspector_elm_${rank.toLowerCase()}`)) {
                     document.getElementById(`inspector_elm_${rank.toLowerCase()}`).remove();
                 }
-    
+
                 var b = document.createElement("div");
                 b.id = `inspector_elm_${rank.toLowerCase()}`;
                 var div = document.createElement("div");
@@ -3081,7 +3300,7 @@
                     rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
                 } else {
                     rankText = document.createTextNode('-');
-    
+
                     //add a tooltip to explain the rank is not available
                     b.setAttribute("data-html-title", `<div>Data not available</div>`);
                     b.setAttribute("title", "");
@@ -3089,7 +3308,7 @@
                 b.appendChild(rankText);
                 parent.appendChild(b);
             });
-    
+
             //for all XH, X, SH, S, A ranks, we set a tooltip display alt values
             ["XH", "X", "SH", "S", "A"].forEach(rank => {
                 var rankElement = document.getElementsByClassName(`score-rank--${rank}`)[0];
@@ -3105,16 +3324,16 @@
                     rankElement.setAttribute("title", "");
                 }
             });
-    
+
             //find the parent of score-rank--A
             var aParent = document.getElementsByClassName("score-rank--A")[0].parentNode;
-    
+
             //add an element before aParent to force the next elements to be on the next line
             var br = document.createElement("div");
             //flex expand
             br.style.flexBasis = "100%";
             aParent.parentNode.insertBefore(br, aParent);
-    
+
             //align all the elements to the right
             parent.style.justifyContent = "flex-end";
         }
@@ -3129,7 +3348,7 @@
         // }
         const profile_detail__values = document.getElementsByClassName("profile-detail__values")[profile_stat_index];
 
-        profile_detail__rank.style.gap = "8px";
+        // profile_detail__rank.style.gap = "8px";
 
         const clears = data.user ? (
             data.user.alt_ssh_count +
