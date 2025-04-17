@@ -1772,7 +1772,7 @@
                 return;
             }
 
-            await new Promise(r => setTimeout(r, 250));
+            await new Promise(r => setTimeout(r, 1000));
 
             const beatmapset_id = window.location.href.split("/")[4];
             if (!parseInt(beatmapset_id)) {
@@ -1951,102 +1951,104 @@
     }
 
     //Add team tags
-    async function runUsernames() {
-        let isWorking = false;
-
-        const _func = async () => {
-            if (isWorking) return;
-
-            isWorking = true;
-            try {
-                const usercards = document.getElementsByClassName("js-usercard");
-                const usercards_big = document.getElementsByClassName("user-card");
-                //remove found elements that already have a (nested) child with class "inspector_user_tag"
-                const usercards_filtered = Array.from(usercards).filter(card => !card.querySelector(".inspector_user_tag"));
-                const usercards_big_filtered = Array.from(usercards_big).filter(card => !card.querySelector(".inspector_user_tag"));
-
-                const user_ids = Array.from(usercards_filtered).map(card => card.getAttribute("data-user-id"));
-                const user_ids_big = Array.from(usercards_big_filtered).map(card => getUserCardBigID(card));
-                const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
-
-                const teams = await getTeams(_user_ids);
-
-                if (teams && Object.keys(teams).length > 0) {
-                    modifyJsUserCards(teams);
-                }
-            } catch (err) {
-                console.error(err);
+    let is_tags_working = false;
+    async function updateUserTags() {
+        // if (is_tags_working) return;
+        if (is_tags_working) {
+            let attempts = 0;
+            while (is_tags_working && attempts < 5) {
+                await new Promise(r => setTimeout(r, 1000));
+                attempts++;
             }
 
-            await new Promise(r => setTimeout(r, 1000));
-            isWorking = false;
+            if (attempts >= 5) {
+                console.warn("User tags are taking too long to update, skipping...");
+                return;
+            }
         }
-        await _func();
+        is_tags_working = true;
+        await new Promise(r => setTimeout(r, 250));
+        try {
+            const usercards = document.getElementsByClassName("js-usercard");
+            const usercards_big = document.getElementsByClassName("user-card");
+            //remove found elements that already have a (nested) child with class "inspector_user_tag"
+            const usercards_filtered = Array.from(usercards).filter(card => !card.querySelector(".inspector_user_tag"));
+            const usercards_big_filtered = Array.from(usercards_big).filter(card => !card.querySelector(".inspector_user_tag"));
 
-        const observer = new MutationObserver((mutationsList, observer) => {
-            for (let mutation of mutationsList) {
-                if (mutation.type === 'childList') {
-                    if (window.location.href.includes("/users/") || window.location.href.includes("/u/")) {
-                        if (mutation.target.classList.contains("osu-layout__col-container")) {
-                            _func();
-                        }
-                    } else if (window.location.href.includes("/beatmapsets")) {
-                        if (
-                            mutation.target.classList.contains("beatmapset-scoreboard__main") ||
-                            mutation.target.classList.contains("beatmap-scoreboard-table") ||
-                            mutation.target.classList.contains("beatmap-scoreboard-table__body") ||
-                            mutation.target.classList.contains("beatmapsets__items") ||
-                            mutation.target.classList.contains("beatmapsets") ||
-                            mutation.target.classList.contains("osuplus-table")) {
-                            _func();
-                        }
-                    } else if (window.location.href.includes("/community/chat")) {
-                        if (mutation.target.classList.contains("chat-conversation")) {
-                            _func();
-                        }
-                    } else if (window.location.href.includes("/home/friends")) {
-                        if (mutation.target.classList.contains("user-list__items")) {
-                            _func();
+            console.log(usercards_big_filtered);
+
+            const user_ids = Array.from(usercards_filtered).map(card => card.getAttribute("data-user-id"));
+            const user_ids_big = Array.from(usercards_big_filtered).map(card => getUserCardBigID(card));
+            const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
+
+            const teams = await getTeams(_user_ids);
+
+            if (teams && Object.keys(teams).length > 0) {
+                modifyJsUserCards(teams);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+        is_tags_working = false;
+    }
+    const TAG_TIMEOUT = 5000;
+    let update_tag_observer = null;
+    let update_tag_observer_list = [
+        "beatmapset-scoreboard__main",
+        "beatmap-scoreboard-table",
+        "beatmap-scoreboard-table__body",
+        "beatmap-scoreboard-table__table",
+        "osu-layout__col-container",
+        "user-list__items",
+        "beatmapsets",
+        "osuplus-table",
+        "qtip--user-card"
+    ];
+
+    async function runUsernames() {
+        if (!update_tag_observer) {
+            update_tag_observer = new MutationObserver((mutationsList, observer) => {
+                for (let mutation of mutationsList) {
+                    let shouldRun = false;
+                    for (const className of update_tag_observer_list) {
+                        if (mutation.target.classList.contains(className)) {
+                            shouldRun = true;
+                            break;
                         }
                     }
-
-                    if (mutation.target.classList.contains("qtip--user-card")) {
-                        _func();
+                    if (shouldRun) {
+                        Promise.race([updateUserTags(), new Promise(r => setTimeout(r, TAG_TIMEOUT))]);
+                        console.log(`Running updateUserTags() due to mutation in ${mutation.target.className}`);
                     }
                 }
-            }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-
+            });
+            update_tag_observer.observe(document.body, { childList: true, subtree: true });
+        }
+        await updateUserTags();
     }
 
     function modifyJsUserCards(teams) {
         if (!teams || Object.keys(teams).length === 0) return;
 
-        let usercards = document.querySelectorAll("[class*='js-usercard'], [class*='user-card']");
+        let usercards = document.querySelectorAll("[class*='js-usercard'], [class*='user-card--card']");
         usercards = Array.from(usercards).filter(card => !card.classList.contains("comment__avatar"));
         usercards = usercards.filter(card => !card.querySelector(".avatar.avatar--guest.avatar--beatmapset"));
         usercards = usercards.filter(card => !card.parentElement.classList.contains("chat-conversation__new-chat-avatar"));
+        usercards = usercards.filter(card => !card.parentElement.classList.contains("chat-message-group__sender"));
         usercards = usercards.filter(card => !card.parentElement.classList.contains("beatmap-discussion-user-card__avatar"));
-
-        if (window.location.href.includes("/rankings/")) {
-            const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
-            const userLinksArray = Array.from(userLinks);
-            let uses_region_flags = false;
-            uses_region_flags = userLinksArray.some(link => link.children[0].tagName === "DIV" && link.children[0].children.length > 1);
-        }
+        // usercards = usercards.filter(card => !card.parentElement.classList.contains("js-react--user-card-tooltip"));
 
         for (let i = 0; i < usercards.length; i++) {
             let user_id = null;
             let team = null;
 
-            if (usercards[i].classList.contains("user-card")) {
+            if (usercards[i].classList.contains("user-card--card")) {
                 user_id = getUserCardBigID(usercards[i]);
                 if (!user_id) continue;
-
+                
                 team = teams[user_id];
                 if (!team) continue;
-
+                
                 setBigUserCardTeamTag(usercards[i], team.team);
                 continue;
             }
@@ -2091,13 +2093,6 @@
 
             teamTag.style.marginRight = "5px";
             usercardLink.insertBefore(teamTag, usercardLink.childNodes[1]);
-        } else if (card.parentElement.classList.contains("chat-message-group__sender")) {
-            if (card.parentElement.getElementsByClassName("inspector_user_tag").length > 0) {
-                return;
-            }
-            const parent = card.parentElement;
-            const usernameElement = parent.getElementsByClassName("chat-message-group__username")[0];
-            usernameElement.insertBefore(teamTag, usernameElement.childNodes[0]);
         } else if (card.classList.contains("ranking-page-table-main__link")) {
             //we insert the tag inside the name span, otherwise spacing is off
             const nameSpan = card.getElementsByClassName("ranking-page-table-main__link-text")[0];
@@ -2139,9 +2134,15 @@
     }
 
     function getUserCardBigID(card) {
-        const a = card.querySelector("a");
-        const href_split = a.href.split("/");
+        const container = card.querySelector("a");
+        if(!container) return null;
+        const href_split = container.href.split("/");
+        if (href_split.length < 2) return null;
         const user_id = href_split[href_split.length - 1];
+        if (!parseInt(user_id)) {
+            console.error("Invalid user id", user_id);
+            return null;
+        }
         return user_id;
     }
 
@@ -2455,7 +2456,7 @@
 
         } else if (url.includes("/multiplayer/rooms/")) {
             ranking_index = 1;
-        } else if (url.includes("/seasons/")){
+        } else if (url.includes("/seasons/")) {
             ranking_index = 1;
         }
         ranking = url.split("/")[ranking_index];
@@ -2616,8 +2617,8 @@
                 td_user_card.setAttribute("data-tooltip-position", "right center");
                 td_user_container.appendChild(td_user_card);
 
-                
-                if(GM_getValue("leaderboards_show_avatars", true)) {
+
+                if (GM_getValue("leaderboards_show_avatars", true)) {
                     const td_user_icon_container = document.createElement("span");
                     td_user_icon_container.classList.add("ranking-page-table-main__flag");
                     td_user_card.appendChild(td_user_icon_container);
@@ -2718,7 +2719,7 @@
                 }
             }
 
-            if(GM_getValue("leaderboards_show_avatars", true) && valid_rankings.includes(ranking)) {
+            if (GM_getValue("leaderboards_show_avatars", true) && valid_rankings.includes(ranking)) {
                 const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES[ranking]();
                 const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
 
@@ -2740,7 +2741,7 @@
                     // td_user_container.appendChild(td_user_icon_container);
                     //at front
                     user_card.insertBefore(td_user_icon_container, user_card.children[0]);
-                    
+
                     const td_user_icon_element = document.createElement("span");
                     td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
                     td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${user_id})`;
