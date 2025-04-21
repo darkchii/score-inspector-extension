@@ -25,6 +25,7 @@
 
     const IMAGE_DEFAULT_TEAM_BG = "https://cloud.kirino.sh/index.php/apps/raw/s/xn6ybB2ggC2KLcS";
     const IMAGE_ICON_SPINNER = "https://cloud.kirino.sh/index.php/apps/raw/s/4KmxzMtbEriHDXq";
+    const IMAGE_SETTINGS = "https://raw.githubusercontent.com/darkchii/score-inspector-extension/main/icon48.png";
 
     //this data is used to generate both the settings container and the stored data
     let SETTINGS_DATA = [
@@ -81,7 +82,7 @@
                     'internal_name': 'leaderboards_seperate_flags_column',
                     'type': 'checkbox',
                     'default': true,
-                    'description': 'Create a separate column for flags',
+                    'description': 'Create a separate column for flags (makes usernames vertically aligned)',
                 },
                 {
                     'name': 'Show country flags',
@@ -104,6 +105,26 @@
                     'default': true,
                     'description': 'Show avatars',
                 }
+            ]
+        },
+        {
+            'title': 'Beatmap Page',
+            'internal_name': 'beatmap_page',
+            'options': [
+                {
+                    'name': 'Show spinner count',
+                    'internal_name': 'beatmap_page_show_spinner_count',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Show spinner count',
+                },
+                {
+                    'name': 'Show performance calculator',
+                    'internal_name': 'beatmap_page_show_performance_calculator',
+                    'type': 'checkbox',
+                    'default': true,
+                    'description': 'Show performance calculator',
+                },
             ]
         },
         {
@@ -877,6 +898,169 @@
         return number + postfixes[count];
     }
 
+    class Mods {
+        constructor(obj) {
+            this.data = obj || [];
+            this.speed = 1;
+
+            Mods.updateSpeed(this);
+
+        }
+
+        static updateSpeed(mods) {
+            if (!mods) return;
+            mods.speed = 1;
+            if (Mods.hasMod(mods, "DT") || Mods.hasMod(mods, "NC")) {
+                const mod = Mods.getMod(mods, "DT") || Mods.getMod(mods, "NC");
+                mods.speed = mod?.settings?.speed_change || 1.5;
+                if (mod?.settings && !mod.settings.speed_change) {
+                    mods.speed = 1.5;
+                }
+            }
+
+            if (Mods.hasMod(mods, "HT") || Mods.hasMod(mods, "DC")) {
+                const mod = Mods.getMod(mods, "HT") || Mods.getMod(mods, "DC");
+                mods.speed = mod?.settings?.speed_change || 0.75;
+                if (mod?.settings && !mod.settings.speed_change) {
+                    mods.speed = 0.75;
+                }
+            }
+        }
+
+        static isNoMod(mods) {
+            return mods.data.length === 0;
+        }
+
+        static addMod(mods, mod) {
+            if (Mods.hasMod(mods, mod)) return;
+            mods.data.push({ acronym: mod });
+        }
+
+        static hasMod(mods, mod) {
+            return mods.data.find(m => m.acronym === mod) !== undefined;
+        }
+
+        static hasMods(mods, acronyms) {
+            //return true if all the mods are present
+            return acronyms.every(acronym => mods.data.find(m => m.acronym === acronym) !== undefined);
+        }
+
+        static getMod(mods, mod) {
+            return mods.data.find(m => m.acronym === mod);
+        }
+
+        static getMods(mods) {
+            return mods.data;
+        }
+
+        static hasExactMods(mods, acronyms) {
+            //return true if the mods are exactly the same
+            if (mods.data.length !== acronyms.length) return false;
+            return mods.data.every(m => acronyms.includes(m.acronym));
+        }
+
+        static containsSettings(mods) {
+            return mods.data.some(m => m.settings !== undefined);
+        }
+
+        static containsSetting(mods, setting) {
+            return mods.data.some(m => m.settings !== undefined && m.settings[setting] !== undefined);
+        }
+
+        static getSetting(mods, setting) {
+            return mods.data.find(m => m.settings !== undefined && m.settings[setting] !== undefined);
+        }
+
+        static getModSetting(mods, mod, setting) {
+            if (!Mods.hasMod(mods, mod)) return null;
+            return Mods.getMod(mods, mod)?.settings?.[setting] || null;
+        }
+
+        static setModSetting(mods, mod, setting, value) {
+            console.log('checking mod', mod, setting, value);
+            if (!Mods.hasMod(mods, mod)) return null;
+            const modObj = Mods.getMod(mods, mod);
+            console.log('checking settings');
+            if (!modObj.settings) modObj.settings = {};
+            modObj.settings[setting] = value;
+            Mods.updateSpeed(mods);
+        }
+
+        static toggleByAcronym(mods, acronym) {
+            if (!mods) return null;
+            if (Mods.hasMod(mods, acronym)) {
+                mods.data = mods.data.filter(m => m.acronym !== acronym);
+            } else {
+                //add mod to mods
+                Mods.addMod(mods, acronym);
+            }
+            Mods.updateSpeed(mods);
+        }
+
+        static getClockRate(mods) {
+            let rate = 1;
+            let freq = 1;
+            let tempo = 1;
+            for (const mod of mods.data) {
+                if (Mods.isModSpeedChange(mod)) {
+                    let freqAdjust = 1;
+                    let tempoAdjust = Mods.getSpeedChangeFromMod(mod) ?? freqAdjust;
+
+                    freq *= freqAdjust;
+                    tempo *= tempoAdjust;
+                }
+            }
+
+            rate = freq * tempo;
+
+            return rate;
+        }
+
+        static getSpeedChangeFromMod(mod) {
+            if (!Mods.isModSpeedChange(mod)) return 1;
+            if (mod.settings?.speed_change) return mod.settings.speed_change;
+            if (mod.acronym === "DT" || mod.acronym === "NC") return 1.5;
+            if (mod.acronym === "HT" || mod.acronym === "DC") return 0.75;
+        }
+
+        static isModSpeedChange(mod) {
+            return mod.acronym === "DT" || mod.acronym === "NC" || mod.acronym === "HT" || mod.acronym === "DC";
+        }
+
+        static async isModCompatible(mods, ruleset, acronym) {
+            await modsDataMakeSure();
+            if (!MODS_DATA) {
+                console.error("Error fetching mods data");
+                return false;
+            }
+
+            if (!mods) return false;
+            if (!ruleset) ruleset = "osu";
+            if (!acronym) return false;
+            if (!MODS_DATA[ruleset]) return false;
+            if (Mods.hasMod(mods, acronym)) return true;
+            if (Mods.isNoMod(mods)) return true;
+
+            //find the data for given acronym
+            let INPUT_DATA = MODS_DATA[ruleset].find(mod => mod.Acronym === acronym);
+            if (!INPUT_DATA) return false;
+
+            let compatible = true;
+            mods.data.forEach(mod => {
+                let selected_acronym = mod.acronym;
+                let CHECK_DATA = MODS_DATA[ruleset].find(m => m.Acronym === selected_acronym);
+                if (!CHECK_DATA) return false;
+                if (CHECK_DATA.IncompatibleMods.includes(INPUT_DATA.Acronym) || INPUT_DATA.IncompatibleMods.includes(CHECK_DATA.Acronym)) {
+                    compatible = false;
+                }
+                if (!compatible) return false;
+            });
+            if (!compatible) return false;
+
+            return true;
+        }
+    }
+
     let MODS_DATA = null;
     async function modsDataMakeSure() {
         if (MODS_DATA) return MODS_DATA;
@@ -952,7 +1136,7 @@
                 right: 130px;
                 cursor: pointer;
                 z-index: 9999;
-                background: url(https://score.kirino.sh/logo192.png) no-repeat center center;
+                background: url(${IMAGE_SETTINGS}) no-repeat center center;
                 background-size: contain;
                 border-radius: 5px;
                 border: 1px solid hsl(var(--hsl-d5));
@@ -983,6 +1167,25 @@
 
             .profile-detail__values {
                 gap: 15px;
+            }
+
+            .beatmap-scoreboard-mod--disabled {
+                filter: grayscale(100%);
+            }
+
+            .mod-settings-container {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .mod-icon-label {
+                display: flex;
+                gap: 5px;
+            }
+
+            .pp-calc-container {
+                padding-top: 10px;
             }
         `);
 
@@ -1029,23 +1232,29 @@
 
     let active_settings = null;
     function createSettingsButton() {
-        //make sure it exists, if it does, do nothing
-        if (document.getElementById("inspector_settings_button")) return;
+        if (document.getElementById("inspector_settings_button")) {
+            //destroy it
+            document.getElementById("inspector_settings_button").remove();
+            //safer than just returning, turbopage loads can cause desync or whatever, where the button is removed right after our check
+        }
 
-        const element = document.createElement("div");
-        element.classList.add("settings-button");
-        element.id = "inspector_settings_button";
+        (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const element = document.createElement("div");
+            element.classList.add("settings-button");
+            element.id = "inspector_settings_button";
 
-        //tooltip
-        element.setAttribute("title", "inspector settings");
-        element.setAttribute("data-tooltip", "inspector settings");
+            //tooltip
+            element.setAttribute("title", "inspector settings");
+            element.setAttribute("data-tooltip", "inspector settings");
 
-        //add to body at index 0
-        document.body.insertBefore(element, document.body.firstChild);
-        element.addEventListener("click", () => {
-            //TODO: open settings menu
-            createSettingsPanel();
-        });
+            //add to body at index 0
+            document.body.insertBefore(element, document.body.firstChild);
+            element.addEventListener("click", () => {
+                //TODO: open settings menu
+                createSettingsPanel();
+            });
+        })();
     }
 
     function createSettingsPanel() {
@@ -1260,7 +1469,6 @@
             await modsDataMakeSure();
 
             const active_score = await getScoreData();
-            console.log(active_score);
 
             //Apply the attributes to the current score view
             //get element class "score-stats__group score-stats__group--stats"
@@ -1684,7 +1892,6 @@
 
     async function getUserBeatmapScores(user_id, beatmap_id, ruleset) {
         try {
-            console.log(`Fetching beatmap scores for user ${user_id} on beatmap ${beatmap_id} with ruleset ${ruleset}`);
             const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {
                 method: "GET"
             });
@@ -1818,7 +2025,9 @@
                 const beatmap = beatmap_data.beatmap_data;
                 const attributes = beatmap_data.attributes;
 
-                addBeatmapBasicStatsEntry(beatmap_basic_stats, IMAGE_ICON_SPINNER, 'spinner-count', "Spinner Count", beatmap.count_spinners);
+                if (GM_getValue("beatmap_page_show_spinner_count", true)) {
+                    addBeatmapBasicStatsEntry(beatmap_basic_stats, IMAGE_ICON_SPINNER, 'spinner-count', "Spinner Count", beatmap.count_spinners);
+                }
 
                 if (attributes) {
                     if (active_mode === 'osu') {
@@ -1826,11 +2035,17 @@
                         addBeatmapTableStatsEntry(beatmap_stats_table, 'diff-speed', "Stars Speed", formatNumber(attributes.speed_difficulty, 2), attributes.speed_difficulty * 10);
                     }
                 }
+
+                if (GM_getValue("beatmap_page_show_performance_calculator", true)) {
+                    createBeatmapPagePerformanceCalculator(beatmap);
+                }
+
             } else {
                 removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
                 removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-aim");
                 removeBeatmapTableStatsEntry(beatmap_stats_table, "diff-speed");
             }
+
 
             is_running = false;
         }
@@ -1841,7 +2056,6 @@
         const mode_pickers = document.getElementsByClassName("game-mode-link");
         //merge the two arrays
         const pickers = [...beatmapset_beatmap_pickers, ...mode_pickers];
-        console.log(beatmapset_beatmap_pickers);
         if (pickers && pickers.length > 0) {
             //add onclick event to each element to execute the runner function
             for (const element of pickers) {
@@ -1851,6 +2065,293 @@
             }
         }
 
+    }
+
+    let beatmap_mod_selection_active = new Mods();
+    let beatmap_pp_calc_active_ruleset = 'osu';
+    async function createBeatmapPagePerformanceCalculator(beatmap) {
+        //find element with user-profile-pages user-profile-pages--no-tabs
+        beatmap_mod_selection_active = new Mods(); //reset
+        beatmap_pp_calc_active_ruleset = beatmap.mode;
+
+        const user_profile_pages = document.getElementsByClassName("user-profile-pages user-profile-pages--no-tabs")[0];
+
+        if (!user_profile_pages) {
+            console.error('[inspector] Cannot find main leaderboard container (expects element with class "user-profile-pages user-profile-pages--no-tabs")');
+            return;
+        }
+
+        //check if pp-calc-container already exists
+        if (document.getElementById("pp-calc-container")) {
+            document.getElementById("pp-calc-container").remove();
+        }
+
+        const pp_calc_container = document.createElement("div");
+        pp_calc_container.id = "pp-calc-container";
+        pp_calc_container.classList.add("pp-calc-container");
+
+        //insert before user_profile_pages
+        const pp_calc_container_parent = user_profile_pages.parentElement;
+        pp_calc_container_parent.insertBefore(pp_calc_container, user_profile_pages);
+
+        const pp_calc_page = document.createElement("div");
+        pp_calc_page.classList.add("page-extra");
+        pp_calc_page.id = "pp-calc-page";
+
+        pp_calc_container.appendChild(pp_calc_page);
+
+        const mods_selector = await createModSelector(beatmap_pp_calc_active_ruleset);
+        pp_calc_page.appendChild(mods_selector);
+
+        const pp_calc_main_container = document.createElement("div");
+        pp_calc_main_container.classList.add("beatmapset-scoreboard__main");
+        pp_calc_main_container.id = "pp-calc-main-container";
+        pp_calc_page.appendChild(pp_calc_main_container);
+
+        createOrUpdateBeatmapPagePerformanceModSettingsPanel();
+        createBeatmapPagePerformanceStatisticsPanel(beatmap, beatmap_pp_calc_active_ruleset);
+    }
+
+    let beatmap_mod_selector_buttons = [];
+    async function createModSelector(mode) {
+        const container = document.createElement("div");
+        container.classList.add("beatmapset-scoreboard__mods", "beatmapset-scoreboard__mods--initial");
+
+        //get mod data
+        await modsDataMakeSure();
+        const mod_data = MODS_DATA[mode];
+
+        beatmap_mod_selector_buttons = [];
+        mod_data.forEach(mod => {
+            if (!mod.UserPlayable) return;
+            const mod_button = document.createElement("button");
+            mod_button.classList.add("beatmap-scoreboard-mod");
+            mod_button.type = "button";
+
+            const mod_div = document.createElement("div");
+            mod_div.classList.add("mod", `mod--${mod.Acronym}`, `mod--type-${mod.Type}`);
+            mod_div.setAttribute("data-acronym", mod.Acronym);
+            mod_div.setAttribute("title", mod.Name);
+            mod_button.appendChild(mod_div);
+            container.appendChild(mod_button);
+
+            beatmap_mod_selector_buttons.push(mod_button);
+
+            mod_button.addEventListener("click", async () => {
+                Mods.toggleByAcronym(beatmap_mod_selection_active, mod.Acronym);
+
+                if (Mods.hasMod(beatmap_mod_selection_active, mod.Acronym)) {
+                    mod_button.classList.add("beatmap-scoreboard-mod--enabled");
+                } else {
+                    mod_button.classList.remove("beatmap-scoreboard-mod--enabled");
+                }
+
+                //if theres more than 0 mods active, remove "beatmapset-scoreboard__mods--initial", if its 0, add it
+                if (beatmap_mod_selection_active.data.length > 0) {
+                    container.classList.remove("beatmapset-scoreboard__mods--initial");
+                } else {
+                    container.classList.add("beatmapset-scoreboard__mods--initial");
+                }
+
+                //update compatible mods (disable all buttons that are incompatible with any of the present mods)
+                // beatmap_mod_selector_buttons.forEach(button => {
+                for await (const button of beatmap_mod_selector_buttons) {
+                    const mod = button.firstChild.getAttribute("data-acronym");
+                    if (await Mods.isModCompatible(beatmap_mod_selection_active, mode, mod)) {
+                        button.classList.remove("beatmap-scoreboard-mod--disabled");
+                        button.disabled = false;
+                    } else {
+                        button.classList.add("beatmap-scoreboard-mod--disabled");
+                        button.disabled = true;
+                    }
+                };
+
+                createOrUpdateBeatmapPagePerformanceModSettingsPanel();
+            });
+        });
+
+        return container;
+    }
+
+    function createBeatmapPagePerformanceStatisticsPanel(beatmap, mode) {
+        let container = document.getElementById("pp-calc-main-container");
+
+        let pp_calc_statistics_panel = document.getElementById("pp-calc-statistics-panel");
+
+        if (!pp_calc_statistics_panel) {
+            pp_calc_statistics_panel = document.createElement("div");
+            pp_calc_statistics_panel.id = "pp-calc-statistics-panel";
+            container.appendChild(pp_calc_statistics_panel);
+        }
+
+        //clear the container
+        pp_calc_statistics_panel.innerHTML = "";
+
+        let pp_calc_statistics_scrollview = document.createElement("div");
+        pp_calc_statistics_scrollview.classList.add("mod-settings-container");
+        pp_calc_statistics_panel.appendChild(pp_calc_statistics_scrollview);
+
+        //title
+        const title = document.createElement("h6");
+        title.classList.add("beatmapset-info__title");
+        title.textContent = "Statistics";
+        pp_calc_statistics_scrollview.appendChild(title);
+    }
+
+    async function createOrUpdateBeatmapPagePerformanceModSettingsPanel() {
+        let container = document.getElementById("pp-calc-main-container");
+        //check if element with id "pp-calc-mod-settings-panel" exists
+        let pp_calc_mod_settings_panel = document.getElementById("pp-calc-mod-settings-panel");
+
+        if (!pp_calc_mod_settings_panel) {
+            pp_calc_mod_settings_panel = document.createElement("div");
+            pp_calc_mod_settings_panel.id = "pp-calc-mod-settings-panel";
+            container.appendChild(pp_calc_mod_settings_panel);
+        }
+
+        //clear the container
+        pp_calc_mod_settings_panel.innerHTML = "";
+
+        let pp_calc_mod_settings_scrollview = document.createElement("div");
+        pp_calc_mod_settings_scrollview.classList.add("mod-settings-container");
+        pp_calc_mod_settings_panel.appendChild(pp_calc_mod_settings_scrollview);
+
+        //title
+        const title = document.createElement("h6");
+        title.classList.add("beatmapset-info__title");
+        title.textContent = "Mod Settings";
+        pp_calc_mod_settings_scrollview.appendChild(title);
+
+        //go through existing mods and create inputs for them
+        const mod_data = MODS_DATA[beatmap_pp_calc_active_ruleset];
+
+        if (beatmap_mod_selection_active.data.length > 0) {
+            beatmap_mod_selection_active.data.forEach(mod => {
+                const data_set = mod_data.find(m => m.Acronym == mod.acronym);
+
+                const mod_settings_container = document.createElement("div");
+                mod_settings_container.classList.add("account-edit__input-group");
+
+                //Title (mod icon and name)
+                const mod_settings_title = document.createElement("div");
+                mod_settings_title.classList.add("mod-icon-label");
+
+                const mod_settings_icon = document.createElement("span");
+                mod_settings_icon.classList.add("mod", `mod--${data_set.Acronym}`, `mod--type-${data_set.Type}`);
+                mod_settings_icon.setAttribute("data-acronym", data_set.Acronym);
+                mod_settings_icon.setAttribute("title", data_set.Name);
+                mod_settings_title.appendChild(mod_settings_icon);
+
+                const mod_settings_label = document.createElement("span");
+                mod_settings_label.classList.add("mod-icon-label__label");
+                mod_settings_label.textContent = data_set.Name;
+                mod_settings_title.appendChild(mod_settings_label);
+
+                mod_settings_container.appendChild(mod_settings_title);
+
+                pp_calc_mod_settings_panel.appendChild(mod_settings_container);
+
+                //create input for each setting (if applicable, otherwise a small text saying no settings)
+                if (data_set.Settings && data_set.Settings.length > 0) {
+                    data_set.Settings.forEach(setting => {
+                        const edit_field = getModSettingEditor(mod.acronym, setting, () => {
+
+                        });
+                        mod_settings_container.appendChild(edit_field);
+                    });
+                } else {
+                    const no_settings = document.createElement("div");
+                    no_settings.classList.add("mod-settings__no-settings");
+                    no_settings.textContent = "No settings available";
+                    mod_settings_container.appendChild(no_settings);
+                }
+            });
+        }
+    }
+
+    function getModSettingEditor(acronym, setting, updateCallback = null) {
+        const row = document.createElement("div");
+        row.classList.add("account-edit-entry", "js-account-edit");
+        row.style.padding = "5px 0px";
+
+        const mod_value = Mods.getModSetting(beatmap_mod_selection_active, acronym, setting.Name);
+        let input = null;
+        let min = null;
+        let max = null;
+
+        if(setting.Name === 'speed_change'){
+            min = 0.5;
+            max = 2;
+        }
+
+        switch (setting.Type) {
+            case 'boolean':
+                const label = document.createElement("label");
+                label.classList.add("account-edit-entry__checkbox");
+                row.appendChild(label);
+
+                const switch_label = document.createElement("label");
+                switch_label.classList.add("osu-switch-v2");
+                label.appendChild(switch_label);
+
+                const switch_input = document.createElement("input");
+                switch_input.classList.add("osu-switch-v2__input", "js-account-edit__input");
+                switch_input.type = "checkbox";
+                switch_input.checked = mod_value;
+                switch_label.appendChild(switch_input);
+
+                const switch_styling = document.createElement("span");
+                switch_styling.classList.add("osu-switch-v2__content");
+                switch_label.appendChild(switch_styling);
+
+                input = switch_input;
+                break;
+            case 'number':
+                const number_input = document.createElement("input");
+                number_input.classList.add("account-edit-entry__input", "js-account-edit__input");
+                number_input.type = "number";
+                number_input.value = mod_value;
+                number_input.style.maxWidth = "60px";
+                //regex to check if value is a float
+                number_input.pattern = "^[0-9]*[.,]?[0-9]*$";
+                if(min) number_input.min = min;
+                if(max) number_input.max = max;
+                input = number_input;
+                row.appendChild(number_input);
+                break;
+            case 'string':
+                const string_input = document.createElement("input");
+                string_input.classList.add("account-edit-entry__input", "js-account-edit__input");
+                string_input.value = mod_value;
+                string_input.style.maxWidth = "60px";
+                input = string_input;
+                row.appendChild(string_input);
+                break;
+            default:
+                const setting_element = document.createElement("div");
+                row.appendChild(setting_element);
+
+                const setting_name = document.createElement("span");
+                setting_name.classList.add("mod-settings__label");
+                setting_name.textContent = setting.Label + ' (no implementation: ' + setting.Type + ')';
+                setting_element.appendChild(setting_name);
+                break;
+        }
+
+        if(input) {
+            input.addEventListener("change", () => {
+                Mods.setModSetting(beatmap_mod_selection_active, acronym, setting.Name, setting.Type === 'boolean' ? input.checked : input.value);
+                console.log(beatmap_mod_selection_active);
+            });
+        }
+
+        const entry_label = document.createElement("div");
+        entry_label.classList.add("account-edit-entry__label");
+        entry_label.textContent = setting.Label;
+        entry_label.style.fontSize = "10px";
+        row.appendChild(entry_label);
+
+        return row;
     }
 
     function removeBeatmapBasicStatsEntry(beatmap_basic_stats, internal_title) {
@@ -1975,8 +2476,6 @@
             const usercards_filtered = Array.from(usercards).filter(card => !card.querySelector(".inspector_user_tag"));
             const usercards_big_filtered = Array.from(usercards_big).filter(card => !card.querySelector(".inspector_user_tag"));
 
-            console.log(usercards_big_filtered);
-
             const user_ids = Array.from(usercards_filtered).map(card => card.getAttribute("data-user-id"));
             const user_ids_big = Array.from(usercards_big_filtered).map(card => getUserCardBigID(card));
             const _user_ids = user_ids.concat(user_ids_big).filter((v, i, a) => a.indexOf(v) === i);
@@ -2018,7 +2517,6 @@
                     }
                     if (shouldRun) {
                         Promise.race([updateUserTags(), new Promise(r => setTimeout(r, TAG_TIMEOUT))]);
-                        console.log(`Running updateUserTags() due to mutation in ${mutation.target.className}`);
                     }
                 }
             });
@@ -2045,10 +2543,10 @@
             if (usercards[i].classList.contains("user-card--card")) {
                 user_id = getUserCardBigID(usercards[i]);
                 if (!user_id) continue;
-                
+
                 team = teams[user_id];
                 if (!team) continue;
-                
+
                 setBigUserCardTeamTag(usercards[i], team.team);
                 continue;
             }
@@ -2099,7 +2597,6 @@
             if (nameSpan.getElementsByClassName("inspector_user_tag").length > 0) {
                 return;
             }
-            console.log(nameSpan);
             nameSpan.insertBefore(teamTag, nameSpan.childNodes[0]);
         } else {
             if (card.getElementsByClassName("inspector_user_tag").length > 0) {
@@ -2135,7 +2632,7 @@
 
     function getUserCardBigID(card) {
         const container = card.querySelector("a");
-        if(!container) return null;
+        if (!container) return null;
         const href_split = container.href.split("/");
         if (href_split.length < 2) return null;
         const user_id = href_split[href_split.length - 1];
@@ -2171,8 +2668,6 @@
         if (user_id_array.length === 0) {
             return team_map;
         }
-
-        console.log(`Fetching ${user_id_array.length} users teams from remote...`);
 
         const teams = await fetch(`${SCORE_INSPECTOR_API}extension/users/teams`, {
             method: "POST",
@@ -2461,8 +2956,6 @@
         }
         ranking = url.split("/")[ranking_index];
 
-        console.log(`Ranking: ${ranking}`);
-
         const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
         // const active_custom_ranking = lb_page_nav_items.find(item => item.link === url);
         if (active_custom_ranking) {
@@ -2493,7 +2986,6 @@
             headerNav = page_data.header_nav;
 
             const filter_container = createRankingFilter(country);
-            console.log(filter_container);
             container.appendChild(filter_container);
 
             const scores_container = document.createElement("div");
@@ -2708,7 +3200,6 @@
                     const user_td_children = user_td.getElementsByClassName("ranking-page-table-main__flag");
                     // append them all to td_user_flag_contents
                     for (let j = 0; j < user_td_children.length; j++) {
-                        console.log(`Moving `, user_td_children[j])
                         td_user_flag_contents.appendChild(user_td_children[j].cloneNode(true)); //for some reason if we don't clone, it doesn't work properly
                     }
 
@@ -2873,7 +3364,6 @@
         const SCORE_INDEX = LEADERBOARD_STRUCTURE.indexOf("ranked_score");
         const SCORE_CHANGE_OFFSET = 2;
         const SCORE_CHANGE_INDEX = SCORE_INDEX + 1 + SCORE_CHANGE_OFFSET;
-        console.log(`RANK_INDEX: ${RANK_INDEX}, USER_INDEX: ${USER_INDEX}, RANK_CHANGE_INDEX: ${RANK_CHANGE_INDEX}, SCORE_INDEX: ${SCORE_INDEX}, SCORE_CHANGE_INDEX: ${SCORE_CHANGE_INDEX}`);
 
         let rank_change_date = null;
 
@@ -4032,7 +4522,7 @@
     // let currentUrl = window.location.href;
 
     if (window.onurlchange === null) {
-        console.log("Registering URL change observer");
+        console.log("[inspector] registering URL change observer");
         window.addEventListener('urlchange', function (e) {
             run();
         });
@@ -4395,103 +4885,6 @@
 
                 this.drain_rate = hp;
             }
-        }
-    }
-
-    class Mods {
-        constructor(obj) {
-            this.data = obj;
-            this.speed = 1;
-
-            if (Mods.hasMod(this, "DT") || Mods.hasMod(this, "NC")) {
-                const mod = Mods.getMod(this, "DT") || Mods.getMod(this, "NC");
-                this.speed = mod?.settings?.speed_change || 1.5;
-                if (mod?.settings && !mod.settings.speed_change) {
-                    this.speed = 1.5;
-                }
-            }
-
-            if (Mods.hasMod(this, "HT") || Mods.hasMod(this, "DC")) {
-                const mod = Mods.getMod(this, "HT") || Mods.getMod(this, "DC");
-                this.speed = mod?.settings?.speed_change || 0.75;
-                if (mod?.settings && !mod.settings.speed_change) {
-                    this.speed = 0.75;
-                }
-            }
-        }
-
-        static isNoMod(mods) {
-            return mods.data.length === 0;
-        }
-
-        static hasMod(mods, mod) {
-            return mods.data.find(m => m.acronym === mod) !== undefined;
-        }
-
-        static hasMods(mods, acronyms) {
-            //return true if all the mods are present
-            return acronyms.every(acronym => mods.data.find(m => m.acronym === acronym) !== undefined);
-        }
-
-        static getMod(mods, mod) {
-            return mods.data.find(m => m.acronym === mod);
-        }
-
-        static getMods(mods) {
-            return mods.data;
-        }
-
-        static hasExactMods(mods, acronyms) {
-            //return true if the mods are exactly the same
-            if (mods.data.length !== acronyms.length) return false;
-            return mods.data.every(m => acronyms.includes(m.acronym));
-        }
-
-        static containsSettings(mods) {
-            return mods.data.some(m => m.settings !== undefined);
-        }
-
-        static containsSetting(mods, setting) {
-            return mods.data.some(m => m.settings !== undefined && m.settings[setting] !== undefined);
-        }
-
-        static getSetting(mods, setting) {
-            return mods.data.find(m => m.settings !== undefined && m.settings[setting] !== undefined);
-        }
-
-        static getModSetting(mods, mod, setting) {
-            if (!Mods.hasMod(mods, mod)) return null;
-            return Mods.getMod(mods, mod).settings[setting] || null;
-        }
-
-        static getClockRate(mods) {
-            let rate = 1;
-            let freq = 1;
-            let tempo = 1;
-            for (const mod of mods.data) {
-                if (Mods.isModSpeedChange(mod)) {
-                    let freqAdjust = 1;
-                    let tempoAdjust = Mods.getSpeedChangeFromMod(mod) ?? freqAdjust;
-
-                    freq *= freqAdjust;
-                    tempo *= tempoAdjust;
-                }
-            }
-
-            rate = freq * tempo;
-
-            return rate;
-        }
-
-        static getSpeedChangeFromMod(mod) {
-            if (!Mods.isModSpeedChange(mod)) return 1;
-            if (mod.settings?.speed_change) return mod.settings.speed_change;
-            if (mod.acronym === "DT" || mod.acronym === "NC") return 1.5;
-            if (mod.acronym === "HT" || mod.acronym === "DC") return 0.75;
-        }
-
-        static isModSpeedChange(mod) {
-            return mod.acronym === "DT" || mod.acronym === "NC" || mod.acronym === "HT" || mod.acronym === "DC";
         }
     }
 
