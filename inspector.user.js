@@ -811,6 +811,7 @@
                 "user",
                 "accuracy", //or "completion", but same position
                 "play_count",
+                "ranked_score",
                 "performance",
                 "ss",
                 "s",
