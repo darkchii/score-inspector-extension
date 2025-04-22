@@ -118,13 +118,13 @@
                     'default': true,
                     'description': 'Show spinner count',
                 },
-                {
-                    'name': 'Show performance calculator',
-                    'internal_name': 'beatmap_page_show_performance_calculator',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Show performance calculator',
-                },
+                // {
+                //     'name': 'Show performance calculator',
+                //     'internal_name': 'beatmap_page_show_performance_calculator',
+                //     'type': 'checkbox',
+                //     'default': true,
+                //     'description': 'Show performance calculator',
+                // },
             ]
         },
         {
@@ -754,12 +754,13 @@
     const lb_page_nav_items = [
         {
             name: "performance",
-            attr: "performance",
-            link: "/rankings/{mode}/performance"
-        }, {
+            attr: "global/performance",
+            link: "/rankings/{mode}/global/performance",
+        },
+        {
             name: "score",
-            attr: "score",
-            link: "/rankings/{mode}/score"
+            attr: "global/score",
+            link: "/rankings/{mode}/global/score",
         },
         ...CUSTOM_RANKINGS.map(ranking => {
             return {
@@ -1082,8 +1083,11 @@
     }
 
     let IS_RUNNER_ACTIVE = null;
-    async function run() {
-        if (IS_RUNNER_ACTIVE) return;
+    async function run(trigger = null) {
+        if (IS_RUNNER_ACTIVE){
+            console.log("Runner is already active, skipping run. Trigger: ", trigger);
+            return;
+        };
         IS_RUNNER_ACTIVE = true;
         GM_addStyle(`
             .toast {
@@ -1205,29 +1209,34 @@
         }
         //check for id "osuplusSettingsBtn"
         //wait for osuplusSettingsBtn
-        createSettingsButton();
-
-        if (window.location.href.includes("/rankings/") ||
-            window.location.href.includes("/multiplayer/rooms/") ||
-            window.location.href.includes("/seasons/")) {
-            await handleLeaderboardPage(); //Run this BEFORE score rank stuff etc, since those check for added columns and index offsets
-        }
-
-        await runUserPage();
-        if (GM_getValue("leaderboards_replace_accuracy", true)) {
-            await runScoreRankCompletionPercentages();
-        }
-        if (GM_getValue("leaderboards_show_score_changes", true)) {
-            await runScoreRankChanges();
-        }
-        await runScorePage();
-        await runBeatmapPage();
-
-        if (GM_getValue("teams_show_team_tags", true)) {
-            await runUsernames();
+        try{
+            createSettingsButton();
+    
+            if (window.location.href.includes("/rankings/") ||
+                window.location.href.includes("/multiplayer/rooms/") ||
+                window.location.href.includes("/seasons/")) {
+                await handleLeaderboardPage(); //Run this BEFORE score rank stuff etc, since those check for added columns and index offsets
+            }
+    
+            await runUserPage();
+            if (GM_getValue("leaderboards_replace_accuracy", true)) {
+                await runScoreRankCompletionPercentages();
+            }
+            if (GM_getValue("leaderboards_show_score_changes", true)) {
+                await runScoreRankChanges();
+            }
+            await runScorePage();
+            await runBeatmapPage();
+    
+            if (GM_getValue("teams_show_team_tags", true)) {
+                await runUsernames();
+            }
+        }catch(err){
+            console.error(err);
         }
 
         IS_RUNNER_ACTIVE = false;
+        console.log(`[inspector] run finished. Trigger: ${trigger}`);
     }
 
     let active_settings = null;
@@ -1381,8 +1390,8 @@
     }
 
     function start() {
-        run();
-        document.addEventListener("turbo:load", run)
+        run("start");
+        document.addEventListener("turbo:load", () => run("turbo:load"));
     }
     start();
 
@@ -2036,9 +2045,9 @@
                     }
                 }
 
-                if (GM_getValue("beatmap_page_show_performance_calculator", true)) {
-                    createBeatmapPagePerformanceCalculator(beatmap);
-                }
+                // if (GM_getValue("beatmap_page_show_performance_calculator", true)) {
+                //     createBeatmapPagePerformanceCalculator(beatmap);
+                // }
 
             } else {
                 removeBeatmapBasicStatsEntry(beatmap_basic_stats, "spinner-count");
@@ -2279,7 +2288,7 @@
         let min = null;
         let max = null;
 
-        if(setting.Name === 'speed_change'){
+        if (setting.Name === 'speed_change') {
             min = 0.5;
             max = 2;
         }
@@ -2314,8 +2323,8 @@
                 number_input.style.maxWidth = "60px";
                 //regex to check if value is a float
                 number_input.pattern = "^[0-9]*[.,]?[0-9]*$";
-                if(min) number_input.min = min;
-                if(max) number_input.max = max;
+                if (min) number_input.min = min;
+                if (max) number_input.max = max;
                 input = number_input;
                 row.appendChild(number_input);
                 break;
@@ -2338,7 +2347,7 @@
                 break;
         }
 
-        if(input) {
+        if (input) {
             input.addEventListener("change", () => {
                 Mods.setModSetting(beatmap_mod_selection_active, acronym, setting.Name, setting.Type === 'boolean' ? input.checked : input.value);
                 console.log(beatmap_mod_selection_active);
@@ -2906,7 +2915,13 @@
                 a.setAttribute("data-content", item.attr);
                 li.appendChild(a);
 
-                if (data.active !== null && item.attr.toLowerCase() === data.active.toLowerCase()) {
+                let is_active = false;
+
+                if (data.active && item.attr.toLowerCase() === data.active.toLowerCase()){
+                    is_active = true;
+                }
+
+                if(is_active){
                     a.classList.add("header-nav-v4__link--active");
                 }
             }
@@ -2938,9 +2953,10 @@
 
         let mode = 'osu';
         let ranking = null;
+        let is_global = url.includes("/global");
         // /rankings/osu/...
         let mode_index = 2;
-        let ranking_index = 3;
+        let ranking_index = is_global ? 4 : 3;
         // /rankings/taiko/... we need to get the mode from the url
         if (url.includes("/rankings/")) {
             mode = url.split("/")[mode_index];
@@ -3331,7 +3347,7 @@
     async function runScoreRankChanges() {
         //url has to match: "/rankings/{mode}/score{?page=1}"
         const _url = window.location.href;
-        const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/score/)?.[1];
+        const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/global\/score/)?.[1];
         if (!mode) {
             return;
         }
@@ -4524,7 +4540,7 @@
     if (window.onurlchange === null) {
         console.log("[inspector] registering URL change observer");
         window.addEventListener('urlchange', function (e) {
-            run();
+            run("urlchange");
         });
     }
 
