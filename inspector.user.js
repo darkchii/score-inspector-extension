@@ -825,8 +825,8 @@
                 "user",
                 "accuracy", //or "completion", but same position
                 "play_count",
-                "total_score",
                 "ranked_score",
+                "performance",
                 "ss",
                 "s",
                 "a",
@@ -3463,8 +3463,13 @@
             const current_rank = parseInt(current_rank_str.trim().slice(1)); //remove the "#" and parse to int
 
             //get title
-            const current_score_str = cells[SCORE_INDEX].children[0].getAttribute('title');
+            // const current_score_str = cells[SCORE_INDEX].children[0].getAttribute('title');
+            const current_score_str = cells[SCORE_INDEX].textContent; //this is the human-readable
             const current_score = Number(current_score_str.replace(/,/g, ''));
+
+            if(i==0){
+                console.log(`Current rank: ${current_rank}, Current score: ${current_score}`);
+            }
 
             const rank_change_data = data.find(d => d.osu_id == user_id);
             let change_rank = 0;
