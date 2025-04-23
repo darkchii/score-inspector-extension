@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2025-04-22.64
+// @version      2025-04-23.65
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -3345,6 +3345,7 @@
         }
     }
 
+    const DISALLOWED_FILTERS = ["friends", "country", "variant"];
     async function runScoreRankChanges() {
         //url has to match: "/rankings/{mode}/score{?page=1}"
         const _url = window.location.href;
@@ -3353,9 +3354,13 @@
             return;
         }
 
-        //if contains filters, return
-        if (_url.includes("?filter=friends") || _url.includes("?country=")) {
-            return;
+        const url = new URL(_url);
+        const params = url.searchParams;
+        for (const param of params.keys()) {
+            let value = params.get(param);
+            if (DISALLOWED_FILTERS.includes(param) && value !== "all") {
+                return;
+            }
         }
 
         const mode_id = MODE_SLUGS_ALT.indexOf(mode);
