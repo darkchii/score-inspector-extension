@@ -1805,18 +1805,22 @@
             //only slightly more complex
             let mod_set = MODS_DATA[MODE_SLUGS_ALT[data.ruleset]];
             for (const mod of value?.data) {
-                const mod_element = document.createElement("div");
                 //find the mod_data where Acronym == mod.acronym
                 const mod_data = mod_set.find(m => m.Acronym == mod.acronym);
                 if (!mod_data) {
                     console.error("Mod data not found", mod.acronym);
                     continue;
                 }
-                //class: mod mod--DT mod--type-DifficultyIncrease
-                mod_element.classList.add("mod", `mod--${mod_data.Acronym}`, `mod--type-${mod_data.Type}`);
+                
+                const mod_parent_element = document.createElement("div");
+                mod_parent_element.classList.add('mod', `mod--type-${mod_data.Type}`);
+                
+                const mod_element = document.createElement("div");
+                mod_element.classList.add("mod__icon", `mod__icon--${mod_data.Acronym}`);
                 mod_element.setAttribute("data-acronym", mod_data.Acronym);
                 mod_element.setAttribute("data-title", mod_data.Name);
-                value_element.appendChild(mod_element);
+                mod_parent_element.appendChild(mod_element);
+                value_element.appendChild(mod_parent_element);
             }
         }
         value_element.classList.add("beatmap-score-top__stat-value", `beatmap-score-top__stat-value${type ? `--${type}` : ""}`);
