@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2025-07-14.66
+// @version      2025-11-25.67
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -4118,7 +4118,7 @@
             });
         }
 
-        const layout = document.getElementsByClassName("js-react--profile-page u-contents")[0];
+        const layout = document.getElementsByClassName("js-react u-contents")[0];
         const data = layout.getAttribute("data-initial-data");
         const parsedData = JSON.parse(data);
         graphHue = parsedData.user.profile_hue;
