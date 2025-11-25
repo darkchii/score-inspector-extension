@@ -2606,8 +2606,14 @@
             teamTag.style.marginRight = "5px";
             usercardLink.insertBefore(teamTag, usercardLink.childNodes[1]);
         } else if (card.classList.contains("ranking-page-table-main__link")) {
-            //we insert the tag inside the name span, otherwise spacing is off
-            const nameSpan = card.getElementsByClassName("ranking-page-table-main__link-text")[0];
+            let nameSpan = card.getElementsByClassName("ranking-page-table-main__link-text")[0];
+            if (!nameSpan) {
+                nameSpan = document.createElement("span");
+                nameSpan.classList.add("ranking-page-table-main__link-text");
+                nameSpan.textContent = username;
+                card.innerHTML = "";
+                card.appendChild(nameSpan);
+            }
             if (nameSpan.getElementsByClassName("inspector_user_tag").length > 0) {
                 return;
             }
