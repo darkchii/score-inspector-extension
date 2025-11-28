@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         osu! scores inspector
 // @namespace    https://score.kirino.sh
-// @version      2025-11-25.67
+// @version      2025-11-28.68
 // @description  Display osu!alt and scores inspector data on osu! website
 // @author       Amayakase
 // @match        https://osu.ppy.sh/*
@@ -4124,7 +4124,19 @@
             });
         }
 
-        const layout = document.getElementsByClassName("js-react u-contents")[0];
+        const layouts = document.getElementsByClassName("js-react u-contents");
+        //find the one with data-initial-data attribute
+        let layout = null;
+        for (let i = 0; i < layouts.length; i++) {
+            if (layouts[i].getAttribute("data-initial-data")) {
+                layout = layouts[i];
+                break;
+            }
+        }
+        if (!layout) {
+            console.error("Could not find layout with data-initial-data");
+            return;
+        }
         const data = layout.getAttribute("data-initial-data");
         const parsedData = JSON.parse(data);
         graphHue = parsedData.user.profile_hue;
