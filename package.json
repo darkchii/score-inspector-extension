@@ -1,0 +1,35 @@
+{
+  "name": "score-inspector-extension",
+  "version": "2.0.0",
+  "description": "Adds team tags and more stats to the site.",
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/darkchii/score-inspector-extension.git"
+  },
+  "keywords": [],
+  "author": "Alya Kujou",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/darkchii/score-inspector-extension/issues"
+  },
+  "homepage": "https://github.com/darkchii/score-inspector-extension#readme",
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/tampermonkey": "^5.0.5",
+    "eslint": "^10.4.1",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.14",
+    "vite-plugin-monkey": "^8.0.6",
+    "vitest": "^4.1.7"
+  }
+}

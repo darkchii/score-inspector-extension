@@ -20,8 +20,232 @@
 (function () {
     'use strict';
 
-    // const SCORE_INSPECTOR_API = "http://localhost:3863/";
-    const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
+    const DEFAULT_API_VERSION = 20240529;
+
+
+    async function APIClientLogin() {
+        const client_id = GM_getValue("api_client_id", "");
+        const client_secret = GM_getValue("api_client_secret", "");
+
+        if (!client_id || !client_secret) {
+            throw new Error('API client ID and secret must be set');
+        }
+
+        const data = {
+            client_id: client_id,
+            client_secret: client_secret,
+            grant_type: 'client_credentials',
+            scope: 'public'
+        };
+
+        try {
+            const response = await fetch('https://osu.ppy.sh/oauth/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    "Accept-Encoding": "gzip,deflate,compress"
+                },
+                body: JSON.stringify(data)
+            });
+            const responseData = await response.json();
+
+            if (response.status === 200 && responseData) {
+                const expiresIn = responseData.expires_in || 3600; // Default to 1 hour if not provided
+                GM_setValue("api_access_token", responseData.access_token);
+                GM_setValue("api_token_expiration", Date.now() + expiresIn * 1000);
+                return responseData.access_token;
+            } else {
+                throw new Error('Failed to retrieve access token');
+            }
+        } catch (error) {
+            console.error('Error during client login:', error);
+            throw new Error('Failed to login to osu! API');
+        }
+    }
+
+    async function APIAuthorizedApiCall(url, headers, timeout = 10000, post_body = null, response_type = null) {
+        try {
+            const fetchOptions = {
+                method: post_body ? 'POST' : 'GET',
+                headers: headers,
+                body: post_body ? JSON.stringify(post_body) : null,
+            };
+
+            const response = await fetch(url, fetchOptions);
+            let data;
+            if (response_type === 'blob') {
+                data = await response.blob();
+            } else if (response_type === 'arraybuffer') {
+                data = await response.arrayBuffer();
+            } else {
+                data = await response.json();
+            }
+
+            if (response.status === 200) {
+                return data;
+            } else {
+                //if the route is /api/v2/users/ and 404s, it means the user doesn't exist, rather than the path being wrong, so return null instead of throwing an error
+                if (url.includes('/api/v2/users/') && response.status === 404) {
+                    return null;
+                }
+                throw new Error(`API call failed with status code ${response.status}`);
+            }
+        } catch (error) {
+            //same user 404 handling as above
+            if (error.response && error.response.status === 404 && url.includes('/api/v2/users/')) {
+                return null;
+            }
+            console.error('Error during authorized API call:', error);
+            throw new Error('Failed to make authorized API call');
+        }
+    }
+
+    async function APIAuthorizedClientApiCall(url, type = 'get', api_version = null, timeout = 10000, post_body = null, content_type = 'application/json', response_type = null) {
+        let access_token = GM_getValue("api_access_token", null);
+        if (!access_token || Date.now() >= GM_getValue("api_token_expiration")) {
+            access_token = await APIClientLogin();
+        }
+
+        const headers = {
+            'Content-Type': content_type,
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${access_token}`,
+            'Accept-Encoding': 'gzip, deflate, compress',
+            'x-api-version': api_version || DEFAULT_API_VERSION
+        }
+
+        const res = await APIAuthorizedApiCall(url, headers, timeout, post_body, response_type);
+        return res;
+    }
+
+    async function APIGetUserData(userId) {
+        try {
+            const url = `https://osu.ppy.sh/api/v2/users/${userId}`;
+            const response = await APIAuthorizedClientApiCall(url, 'get');
+            if (response && response.id) {
+                return response;
+            }
+            throw new Error('Invalid response from osu! API');
+        } catch (error) {
+            console.error('Error during getting user data:', error);
+            throw new Error('Failed to get user data from osu! API');
+        }
+    }
+
+    async function APIGetUsers(userIds) {
+        try {
+            //max 50 per request, so split into chunks
+            //no parallel requests due to rate limits
+            let allUsers = [];
+            for (let i = 0; i < userIds.length; i += 50) {
+                const chunk = userIds.slice(i, i + 50);
+                const url = `https://osu.ppy.sh/api/v2/users?ids[]=${chunk.join('&ids[]=')}`;
+                const response = await APIAuthorizedClientApiCall(url, 'get');
+                if (response && Array.isArray(response?.users)) {
+                    allUsers = allUsers.concat(response?.users || []);
+                }
+            }
+            return allUsers;
+        } catch (error) {
+            console.error('Error during getting users data:', error);
+            throw new Error('Failed to get users data from osu! API');
+        }
+    }
+
+    async function APIGetBeatmapScores(beatmapId, userId, rulesetId) {
+        try {
+            const beatmap = await APIGetBeatmap(beatmapId);
+            const res = await APIAuthorizedClientApiCall(`https://osu.ppy.sh/api/v2/beatmaps/${beatmapId}/scores/users/${userId}/all?ruleset=${rulesetId}`, 'get', null);
+
+            //attach beatmap to each score
+            if (res && res.scores) {
+                res.scores = res.scores.map(score => {
+                    score.beatmap = beatmap;
+                    return score;
+                });
+            }
+
+            //get attributes for each score and attach to the inner beatmap
+            if (res && res.scores) {
+                for (const score of res.scores) {
+                    const attributes = await APIGetBeatmapAttributes(beatmapId, rulesetId, score.mods);
+                    score.beatmap.attributes = attributes?.attributes;
+                }
+            }
+
+            return res;
+        } catch (err) {
+            throw new Error('Unable to get user beatmap scores: ' + err.message);
+        }
+    }
+
+    async function APIGetBeatmap(beatmapId, mods = null){
+        try {
+            const res = await APIAuthorizedClientApiCall(`https://osu.ppy.sh/api/v2/beatmaps/${beatmapId}`, 'get', null);
+            return res;
+        }catch(err){
+            throw new Error('Unable to get beatmap data: ' + err.message);
+        }
+    }
+
+    async function APIGetBeatmapAttributes(beatmapId, rulesetId, mods = null) {
+        try {
+            const body = {
+                mods: mods || [],
+                ruleset_id: rulesetId
+            }
+            const res = await APIAuthorizedClientApiCall(`https://osu.ppy.sh/api/v2/beatmaps/${beatmapId}/attributes`, 'post', null, null, body);
+            return res;
+        }catch(err) {
+            throw new Error('Unable to get beatmap attributes: ' + err.message);
+        }
+    }
+
+    async function APIGetScoreRank(userId, rulesetId) {
+        try {
+            const url = `https://score.respektive.pw/u/${userId}?m=${rulesetId}`;
+            //use fetch
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate, compress'
+                }
+            });
+            if (response.status === 200) {
+                const data = await response.json();
+                return data;
+            }
+            else {
+                throw new Error(`Score rank API call failed with status code ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error during getting score rank:', error);
+            throw new Error('Failed to get score rank from API');
+        }
+    }
+
+    const minColorOffset = 100;
+    function GetTeamColor(team) {
+        if (team.color) {
+            //validate that its a #xxxxxx color
+            if (/^#([0-9A-F]{3}){1,2}$/i.test(team.color)) {
+                return team.color;
+            }
+        }
+
+        const teamId = team.id;
+        const teamName = team.name;
+        //create a light-colored color based on "{teamId}-{teamName}-extrasalt"
+        const hash = `${teamId}-${teamName}-extrasalt`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const r = (hash * 123) % (255 - minColorOffset) + minColorOffset; //ensure it's between minColorOffset and 255
+        const g = (hash * 321) % (255 - minColorOffset) + minColorOffset;
+        const b = (hash * 213) % (255 - minColorOffset) + minColorOffset;
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    const SCORE_INSPECTOR_API = "http://localhost:3863/";
+    // const SCORE_INSPECTOR_API = "https://api.kirino.sh/inspector/";
 
     const IMAGE_DEFAULT_TEAM_BG = "https://cloud.kirino.sh/index.php/apps/raw/s/xn6ybB2ggC2KLcS";
     const IMAGE_ICON_SPINNER = "https://cloud.kirino.sh/index.php/apps/raw/s/4KmxzMtbEriHDXq";
@@ -32,6 +256,48 @@
         {
             'title': 'Info',
             'description': 'Reload the page to see the changes take effect.',
+        },
+        {
+            'title': 'API',
+            'description': 'Please set your OAuth token (https://osu.ppy.sh/home/account/edit)',
+            'options': [
+                {
+                    'name': 'Client ID',
+                    'internal_name': 'api_client_id',
+                    'type': 'text',
+                    'default': '',
+                    'description': 'Enter your API client ID',
+                },
+                {
+                    'name': 'Client Secret',
+                    'internal_name': 'api_client_secret',
+                    'type': 'text',
+                    'default': '',
+                    'description': 'Enter your API client secret',
+                    'is_password': true,
+                },
+                {
+                    'name': 'Test',
+                    'internal_name': 'api_test',
+                    'type': 'button',
+                    'description': 'Test your API credentials',
+                    'onClick': async () => {
+                        //TODO
+                        // console.log("Testing API credentials...");
+
+                        try {
+                            const userData = await APIGetUserData(2);
+                            if (userData) {
+                                alert("API credentials are valid! User data for user ID 2: " + userData.username);
+                            } else {
+                                alert("API credentials are invalid!");
+                            }
+                        } catch (error) {
+                            alert("API credentials are invalid! Error: " + error.message);
+                        }
+                    }
+                }
+            ]
         },
         {
             'title': 'Profile',
@@ -57,54 +323,6 @@
                     'default': true,
                     'description': 'Show team tags',
                 },
-            ]
-        },
-        {
-            'title': 'Leaderboards',
-            'internal_name': 'leaderboards',
-            'options': [
-                {
-                    'name': 'Replace accuracy with completion percentage',
-                    'internal_name': 'leaderboards_replace_accuracy',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Replace accuracy with completion percentage (ranked score, standard only)',
-                },
-                {
-                    'name': 'Show changes in score and score rank',
-                    'internal_name': 'leaderboards_show_score_changes',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Show changes in score and score rank',
-                },
-                {
-                    'name': 'Create seperate flags column',
-                    'internal_name': 'leaderboards_seperate_flags_column',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Create a separate column for flags (makes usernames vertically aligned)',
-                },
-                {
-                    'name': 'Show country flags',
-                    'internal_name': 'leaderboards_show_country_flags',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Show country flags',
-                },
-                {
-                    'name': 'Show team flags',
-                    'internal_name': 'leaderboards_show_team_flags',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Show team flags',
-                },
-                {
-                    'name': 'Show avatars',
-                    'internal_name': 'leaderboards_show_avatars',
-                    'type': 'checkbox',
-                    'default': true,
-                    'description': 'Show avatars',
-                }
             ]
         },
         {
@@ -147,274 +365,6 @@
     const MODE_SLUGS = ["osu", "taiko", "catch", "mania"];
     const MODE_SLUGS_ALT = ["osu", "taiko", "fruits", "mania"];
     const GRAPHS = ["Performance", "Score"];
-    const COE_ATTENDEE_TYPES = {
-        'SPECTATOR_ONE_DAY': 'Spectator (1 day)',
-        'SPECTATOR_ALL_DAYS': 'Spectator (all days)',
-        'BYOC_ALL_DAYS': 'BYOC (all days)',
-        'SPECTATOR_MIDWEEK': 'Spectator (midweek)',
-        'SPECTATOR_WEEKEND': 'Spectator (weekend)',
-        'BYOC_WEEKEND': 'BYOC (weekend)',
-        'BYOC_MIDWEEK': 'BYOC (midweek)',
-        'CAVE_MAIN': 'Cave',
-        'CAVE_GUEST': 'Cave Guest',
-        'BYOC_PREM_ALL_DAYS': 'BYOC+ (all days)',
-    }
-
-    const COUNTRY_DATA = [
-        { acronym: 'A1', name: 'Anonymous Proxy', display: 0 },
-        { acronym: 'A2', name: 'Satellite Provider', display: 0 },
-        { acronym: 'AD', name: 'Andorra', display: 0 },
-        { acronym: 'AE', name: 'United Arab Emirates', display: 1 },
-        { acronym: 'AF', name: 'Afghanistan', display: 0 },
-        { acronym: 'AG', name: 'Antigua and Barbuda', display: 0 },
-        { acronym: 'AI', name: 'Anguilla', display: 0 },
-        { acronym: 'AL', name: 'Albania', display: 0 },
-        { acronym: 'AM', name: 'Armenia', display: 0 },
-        { acronym: 'AN', name: 'Netherlands Antilles', display: 0 },
-        { acronym: 'AO', name: 'Angola', display: 0 },
-        { acronym: 'AP', name: 'Asia/Pacific Region', display: 0 },
-        { acronym: 'AQ', name: 'Antarctica', display: 0 },
-        { acronym: 'AR', name: 'Argentina', display: 1 },
-        { acronym: 'AS', name: 'American Samoa', display: 0 },
-        { acronym: 'AT', name: 'Austria', display: 1 },
-        { acronym: 'AU', name: 'Australia', display: 2 },
-        { acronym: 'AW', name: 'Aruba', display: 0 },
-        { acronym: 'AX', name: 'Aland Islands', display: 0 },
-        { acronym: 'AZ', name: 'Azerbaijan', display: 1 },
-        { acronym: 'BA', name: 'Bosnia and Herzegovina', display: 0 },
-        { acronym: 'BB', name: 'Barbados', display: 1 },
-        { acronym: 'BD', name: 'Bangladesh', display: 1 },
-        { acronym: 'BE', name: 'Belgium', display: 1 },
-        { acronym: 'BF', name: 'Burkina Faso', display: 0 },
-        { acronym: 'BG', name: 'Bulgaria', display: 1 },
-        { acronym: 'BH', name: 'Bahrain', display: 1 },
-        { acronym: 'BI', name: 'Burundi', display: 0 },
-        { acronym: 'BJ', name: 'Benin', display: 0 },
-        { acronym: 'BL', name: 'Saint Barthelemy', display: 0 },
-        { acronym: 'BM', name: 'Bermuda', display: 0 },
-        { acronym: 'BN', name: 'Brunei', display: 1 },
-        { acronym: 'BO', name: 'Bolivia', display: 0 },
-        { acronym: 'BR', name: 'Brazil', display: 1 },
-        { acronym: 'BS', name: 'Bahamas', display: 0 },
-        { acronym: 'BT', name: 'Bhutan', display: 1 },
-        { acronym: 'BV', name: 'Bouvet Island', display: 0 },
-        { acronym: 'BW', name: 'Botswana', display: 1 },
-        { acronym: 'BY', name: 'Belarus', display: 1 },
-        { acronym: 'BZ', name: 'Belize', display: 0 },
-        { acronym: 'CA', name: 'Canada', display: 1 },
-        { acronym: 'CC', name: 'Cocos (Keeling) Islands', display: 0 },
-        { acronym: 'CD', name: 'Congo, The Democratic Republic of the', display: 0 },
-        { acronym: 'CF', name: 'Central African Republic', display: 0 },
-        { acronym: 'CG', name: 'Congo', display: 0 },
-        { acronym: 'CH', name: 'Switzerland', display: 1 },
-        { acronym: 'CI', name: "Cote D'Ivoire", display: 1 },
-        { acronym: 'CK', name: 'Cook Islands', display: 0 },
-        { acronym: 'CL', name: 'Chile', display: 1 },
-        { acronym: 'CM', name: 'Cameroon', display: 0 },
-        { acronym: 'CN', name: 'China', display: 1 },
-        { acronym: 'CO', name: 'Colombia', display: 1 },
-        { acronym: 'CR', name: 'Costa Rica', display: 1 },
-        { acronym: 'CU', name: 'Cuba', display: 1 },
-        { acronym: 'CV', name: 'Cabo Verde', display: 0 },
-        { acronym: 'CX', name: 'Christmas Island', display: 0 },
-        { acronym: 'CY', name: 'Cyprus', display: 1 },
-        { acronym: 'CZ', name: 'Czechia', display: 1 },
-        { acronym: 'DE', name: 'Germany', display: 2 },
-        { acronym: 'DJ', name: 'Djibouti', display: 1 },
-        { acronym: 'DK', name: 'Denmark', display: 1 },
-        { acronym: 'DM', name: 'Dominica', display: 0 },
-        { acronym: 'DO', name: 'Dominican Republic', display: 0 },
-        { acronym: 'DZ', name: 'Algeria', display: 1 },
-        { acronym: 'EC', name: 'Ecuador', display: 1 },
-        { acronym: 'EE', name: 'Estonia', display: 1 },
-        { acronym: 'EG', name: 'Egypt', display: 1 },
-        { acronym: 'EH', name: 'Western Sahara', display: 0 },
-        { acronym: 'ER', name: 'Eritrea', display: 0 },
-        { acronym: 'ES', name: 'Spain', display: 1 },
-        { acronym: 'ET', name: 'Ethiopia', display: 1 },
-        { acronym: 'EU', name: 'Europe', display: 0 },
-        { acronym: 'FI', name: 'Finland', display: 1 },
-        { acronym: 'FJ', name: 'Fiji', display: 1 },
-        { acronym: 'FK', name: 'Falkland Islands (Malvinas)', display: 0 },
-        { acronym: 'FM', name: 'Micronesia, Federated States of', display: 0 },
-        { acronym: 'FO', name: 'Faroe Islands', display: 0 },
-        { acronym: 'FR', name: 'France', display: 2 },
-        { acronym: 'FX', name: 'France, Metropolitan', display: 0 },
-        { acronym: 'GA', name: 'Gabon', display: 1 },
-        { acronym: 'GB', name: 'United Kingdom', display: 2 },
-        { acronym: 'GD', name: 'Grenada', display: 0 },
-        { acronym: 'GE', name: 'Georgia', display: 0 },
-        { acronym: 'GF', name: 'French Guiana', display: 0 },
-        { acronym: 'GG', name: 'Guernsey', display: 0 },
-        { acronym: 'GH', name: 'Ghana', display: 1 },
-        { acronym: 'GI', name: 'Gibraltar', display: 0 },
-        { acronym: 'GL', name: 'Greenland', display: 0 },
-        { acronym: 'GM', name: 'Gambia', display: 0 },
-        { acronym: 'GN', name: 'Guinea', display: 0 },
-        { acronym: 'GP', name: 'Guadeloupe', display: 0 },
-        { acronym: 'GQ', name: 'Equatorial Guinea', display: 0 },
-        { acronym: 'GR', name: 'Greece', display: 1 },
-        { acronym: 'GS', name: 'South Georgia and the South Sandwich Islands', display: 0 },
-        { acronym: 'GT', name: 'Guatemala', display: 0 },
-        { acronym: 'GU', name: 'Guam', display: 1 },
-        { acronym: 'GW', name: 'Guinea-Bissau', display: 0 },
-        { acronym: 'GY', name: 'Guyana', display: 0 },
-        { acronym: 'HK', name: 'Hong Kong', display: 1 },
-        { acronym: 'HM', name: 'Heard Island and McDonald Islands', display: 0 },
-        { acronym: 'HN', name: 'Honduras', display: 1 },
-        { acronym: 'HR', name: 'Croatia', display: 1 },
-        { acronym: 'HT', name: 'Haiti', display: 0 },
-        { acronym: 'HU', name: 'Hungary', display: 1 },
-        { acronym: 'ID', name: 'Indonesia', display: 2 },
-        { acronym: 'IE', name: 'Ireland', display: 1 },
-        { acronym: 'IL', name: 'Israel', display: 1 },
-        { acronym: 'IM', name: 'Isle of Man', display: 0 },
-        { acronym: 'IN', name: 'India', display: 1 },
-        { acronym: 'IO', name: 'British Indian Ocean Territory', display: 0 },
-        { acronym: 'IQ', name: 'Iraq', display: 1 },
-        { acronym: 'IR', name: 'Iran, Islamic Republic of', display: 1 },
-        { acronym: 'IS', name: 'Iceland', display: 1 },
-        { acronym: 'IT', name: 'Italy', display: 1 },
-        { acronym: 'JE', name: 'Jersey', display: 0 },
-        { acronym: 'JM', name: 'Jamaica', display: 1 },
-        { acronym: 'JO', name: 'Jordan', display: 1 },
-        { acronym: 'JP', name: 'Japan', display: 1 },
-        { acronym: 'KE', name: 'Kenya', display: 1 },
-        { acronym: 'KG', name: 'Kyrgyzstan', display: 0 },
-        { acronym: 'KH', name: 'Cambodia', display: 1 },
-        { acronym: 'KI', name: 'Kiribati', display: 0 },
-        { acronym: 'KM', name: 'Comoros', display: 0 },
-        { acronym: 'KN', name: 'Saint Kitts and Nevis', display: 0 },
-        { acronym: 'KP', name: "Korea, Democratic People's Republic of", display: 0 },
-        { acronym: 'KR', name: 'South Korea', display: 2 },
-        { acronym: 'KW', name: 'Kuwait', display: 1 },
-        { acronym: 'KY', name: 'Cayman Islands', display: 0 },
-        { acronym: 'KZ', name: 'Kazakhstan', display: 0 },
-        { acronym: 'LA', name: "Lao People's Democratic Republic", display: 0 },
-        { acronym: 'LB', name: 'Lebanon', display: 0 },
-        { acronym: 'LC', name: 'Saint Lucia', display: 0 },
-        { acronym: 'LI', name: 'Liechtenstein', display: 1 },
-        { acronym: 'LK', name: 'Sri Lanka', display: 1 },
-        { acronym: 'LR', name: 'Liberia', display: 0 },
-        { acronym: 'LS', name: 'Lesotho', display: 0 },
-        { acronym: 'LT', name: 'Lithuania', display: 1 },
-        { acronym: 'LU', name: 'Luxembourg', display: 1 },
-        { acronym: 'LV', name: 'Latvia', display: 1 },
-        { acronym: 'LY', name: 'Libya', display: 0 },
-        { acronym: 'MA', name: 'Morocco', display: 1 },
-        { acronym: 'MC', name: 'Monaco', display: 1 },
-        { acronym: 'MD', name: 'Moldova', display: 0 },
-        { acronym: 'ME', name: 'Montenegro', display: 0 },
-        { acronym: 'MF', name: 'Saint Martin', display: 0 },
-        { acronym: 'MG', name: 'Madagascar', display: 1 },
-        { acronym: 'MH', name: 'Marshall Islands', display: 0 },
-        { acronym: 'MK', name: 'North Macedonia', display: 1 },
-        { acronym: 'ML', name: 'Mali', display: 0 },
-        { acronym: 'MM', name: 'Myanmar', display: 1 },
-        { acronym: 'MN', name: 'Mongolia', display: 1 },
-        { acronym: 'MO', name: 'Macau', display: 0 },
-        { acronym: 'MP', name: 'Northern Mariana Islands', display: 0 },
-        { acronym: 'MQ', name: 'Martinique', display: 0 },
-        { acronym: 'MR', name: 'Mauritania', display: 0 },
-        { acronym: 'MS', name: 'Montserrat', display: 0 },
-        { acronym: 'MT', name: 'Malta', display: 1 },
-        { acronym: 'MU', name: 'Mauritius', display: 1 },
-        { acronym: 'MV', name: 'Maldives', display: 1 },
-        { acronym: 'MW', name: 'Malawi', display: 0 },
-        { acronym: 'MX', name: 'Mexico', display: 1 },
-        { acronym: 'MY', name: 'Malaysia', display: 2 },
-        { acronym: 'MZ', name: 'Mozambique', display: 0 },
-        { acronym: 'NA', name: 'Namibia', display: 0 },
-        { acronym: 'NC', name: 'New Caledonia', display: 1 },
-        { acronym: 'NE', name: 'Niger', display: 0 },
-        { acronym: 'NF', name: 'Norfolk Island', display: 0 },
-        { acronym: 'NG', name: 'Nigeria', display: 1 },
-        { acronym: 'NI', name: 'Nicaragua', display: 0 },
-        { acronym: 'NL', name: 'Netherlands', display: 1 },
-        { acronym: 'NO', name: 'Norway', display: 1 },
-        { acronym: 'NP', name: 'Nepal', display: 1 },
-        { acronym: 'NR', name: 'Nauru', display: 0 },
-        { acronym: 'NU', name: 'Niue', display: 0 },
-        { acronym: 'NZ', name: 'New Zealand', display: 1 },
-        { acronym: 'O1', name: 'Other', display: 0 },
-        { acronym: 'OM', name: 'Oman', display: 1 },
-        { acronym: 'PA', name: 'Panama', display: 1 },
-        { acronym: 'PE', name: 'Peru', display: 1 },
-        { acronym: 'PF', name: 'French Polynesia', display: 0 },
-        { acronym: 'PG', name: 'Papua New Guinea', display: 1 },
-        { acronym: 'PH', name: 'Philippines', display: 1 },
-        { acronym: 'PK', name: 'Pakistan', display: 1 },
-        { acronym: 'PL', name: 'Poland', display: 1 },
-        { acronym: 'PM', name: 'Saint Pierre and Miquelon', display: 0 },
-        { acronym: 'PN', name: 'Pitcairn', display: 0 },
-        { acronym: 'PR', name: 'Puerto Rico', display: 0 },
-        { acronym: 'PS', name: 'Palestine, State of', display: 0 },
-        { acronym: 'PT', name: 'Portugal', display: 1 },
-        { acronym: 'PW', name: 'Palau', display: 0 },
-        { acronym: 'PY', name: 'Paraguay', display: 1 },
-        { acronym: 'QA', name: 'Qatar', display: 1 },
-        { acronym: 'RE', name: 'Reunion', display: 0 },
-        { acronym: 'RO', name: 'Romania', display: 1 },
-        { acronym: 'RS', name: 'Serbia', display: 0 },
-        { acronym: 'RU', name: 'Russian Federation', display: 1 },
-        { acronym: 'RW', name: 'Rwanda', display: 0 },
-        { acronym: 'SA', name: 'Saudi Arabia', display: 1 },
-        { acronym: 'SB', name: 'Solomon Islands', display: 0 },
-        { acronym: 'SC', name: 'Seychelles', display: 0 },
-        { acronym: 'SD', name: 'Sudan', display: 1 },
-        { acronym: 'SE', name: 'Sweden', display: 2 },
-        { acronym: 'SG', name: 'Singapore', display: 2 },
-        { acronym: 'SH', name: 'Saint Helena', display: 0 },
-        { acronym: 'SI', name: 'Slovenia', display: 1 },
-        { acronym: 'SJ', name: 'Svalbard and Jan Mayen', display: 0 },
-        { acronym: 'SK', name: 'Slovakia', display: 1 },
-        { acronym: 'SL', name: 'Sierra Leone', display: 1 },
-        { acronym: 'SM', name: 'San Marino', display: 0 },
-        { acronym: 'SN', name: 'Senegal', display: 1 },
-        { acronym: 'SO', name: 'Somalia', display: 0 },
-        { acronym: 'SR', name: 'Suriname', display: 0 },
-        { acronym: 'ST', name: 'Sao Tome and Principe', display: 0 },
-        { acronym: 'SV', name: 'El Salvador', display: 1 },
-        { acronym: 'SY', name: 'Syrian Arab Republic', display: 1 },
-        { acronym: 'SZ', name: 'Eswatini', display: 0 },
-        { acronym: 'TC', name: 'Turks and Caicos Islands', display: 0 },
-        { acronym: 'TD', name: 'Chad', display: 0 },
-        { acronym: 'TF', name: 'French Southern Territories', display: 0 },
-        { acronym: 'TG', name: 'Togo', display: 1 },
-        { acronym: 'TH', name: 'Thailand', display: 1 },
-        { acronym: 'TJ', name: 'Tajikistan', display: 0 },
-        { acronym: 'TK', name: 'Tokelau', display: 0 },
-        { acronym: 'TL', name: 'Timor-Leste', display: 0 },
-        { acronym: 'TM', name: 'Turkmenistan', display: 0 },
-        { acronym: 'TN', name: 'Tunisia', display: 1 },
-        { acronym: 'TO', name: 'Tonga', display: 0 },
-        { acronym: 'TR', name: 'Türkiye', display: 1 },
-        { acronym: 'TT', name: 'Trinidad and Tobago', display: 1 },
-        { acronym: 'TV', name: 'Tuvalu', display: 0 },
-        { acronym: 'TW', name: 'Taiwan', display: 1 },
-        { acronym: 'TZ', name: 'Tanzania, United Republic of', display: 1 },
-        { acronym: 'UA', name: 'Ukraine', display: 1 },
-        { acronym: 'UG', name: 'Uganda', display: 0 },
-        { acronym: 'UM', name: 'United States Minor Outlying Islands', display: 0 },
-        { acronym: 'US', name: 'United States', display: 2 },
-        { acronym: 'UY', name: 'Uruguay', display: 1 },
-        { acronym: 'UZ', name: 'Uzbekistan', display: 0 },
-        { acronym: 'VA', name: 'Holy See (Vatican City State)', display: 0 },
-        { acronym: 'VC', name: 'Saint Vincent and the Grenadines', display: 0 },
-        { acronym: 'VE', name: 'Venezuela', display: 1 },
-        { acronym: 'VG', name: 'Virgin Islands, British', display: 0 },
-        { acronym: 'VI', name: 'Virgin Islands, U.S.', display: 0 },
-        { acronym: 'VN', name: 'Vietnam', display: 1 },
-        { acronym: 'VU', name: 'Vanuatu', display: 0 },
-        { acronym: 'WF', name: 'Wallis and Futuna', display: 0 },
-        { acronym: 'WS', name: 'Samoa', display: 0 },
-        { acronym: 'XX', name: '', display: 0 },
-        { acronym: 'YE', name: 'Yemen', display: 0 },
-        { acronym: 'YT', name: 'Mayotte', display: 0 },
-        { acronym: 'ZA', name: 'South Africa', display: 1 },
-        { acronym: 'ZM', name: 'Zambia', display: 0 },
-        { acronym: 'ZW', name: 'Zimbabwe', display: 1 }
-    ];
 
     // let CURRENT_GRAPH = 'Performance';
     let CURRENT_GRAPH = GM_getValue("inspector_current_graph", "Performance");
@@ -422,470 +372,6 @@
     //lets script know what elements to wait for before running
     const PAGE_ELEMENT_WAIT_LIST = {
         'user_page': '.profile-info__name',
-    }
-
-    const CUSTOM_RANKINGS_ATTRIBUTES = {
-        performance: {
-            name: "Performance",
-            val: (user) => {
-                return user.pp;
-            },
-            formatter: (value) => {
-                return `${value.toLocaleString()}pp`;
-            },
-            tooltip_formatter: (value) => {
-                return value.toLocaleString();
-            }
-        },
-        total_pp: {
-            name: "Total PP",
-            val: (user) => {
-                return user.total_pp;
-            },
-            formatter: (value) => {
-                return shortNum(value);
-            },
-            tooltip_formatter: (value) => {
-                return value.toLocaleString();
-            }
-        },
-        accuracy: {
-            name: "Accuracy",
-            val: (user) => {
-                return user.accuracy;
-            },
-            formatter: (value) => {
-                return `${value.toFixed(2)}%`;
-            },
-            tooltip_formatter: (value) => {
-                return `${value.toFixed(2)}%`;
-            }
-        },
-        badges: {
-            name: "Badges",
-            val: (user) => {
-                return user.badges;
-            }
-        },
-        medals: {
-            name: "Medals",
-            val: (user) => {
-                return user.medals;
-            }
-        },
-        members: {
-            name: "Members",
-            val: (user) => {
-                return user.members;
-            }
-        },
-        total_score: {
-            name: "Total Score",
-            val: (user) => {
-                return user.total_score;
-            },
-            formatter: (value) => {
-                return shortNum(value);
-            },
-            tooltip_formatter: (value) => {
-                return value.toLocaleString();
-            }
-        },
-        ranked_score: {
-            name: "Ranked Score",
-            val: (user) => {
-                return user.ranked_score;
-            },
-            formatter: (value) => {
-                return shortNum(value);
-            },
-            tooltip_formatter: (value) => {
-                return value.toLocaleString();
-            }
-        },
-        ss: {
-            name: "SS",
-            val: (user) => {
-                return user.ss_count + user.ssh_count;
-            }
-        },
-        s: {
-            name: "S",
-            val: (user) => {
-                return user.s_count + user.sh_count;
-            }
-        },
-        a: {
-            name: "A",
-            val: (user) => {
-                return user.a_count;
-            }
-        },
-        b: {
-            name: "B",
-            val: (user) => {
-                return user.b_count;
-            }
-        },
-        c: {
-            name: "C",
-            val: (user) => {
-                return user.c_count;
-            }
-        },
-        d: {
-            name: "D",
-            val: (user) => {
-                return user.d_count;
-            }
-        },
-        clears: {
-            name: "Clears",
-            val: (user) => {
-                return user.ss_count + user.ssh_count + user.s_count + user.sh_count + user.a_count;
-            }
-        },
-        playtime: {
-            name: "Playtime",
-            val: (user) => {
-                // return user.playtime;
-                //convert to pretty format
-                const hours = Math.floor(user.playtime / 3600);
-                const minutes = Math.floor(user.playtime / 60) % 60;
-                return `${hours}h ${minutes}m`;
-            },
-        },
-        playcount: {
-            name: "Playcount",
-            val: (user) => {
-                return user.playcount;
-            },
-        },
-        replays_watched: {
-            name: "Replays Watched",
-            val: (user) => {
-                return user.replays_watched;
-            },
-        },
-        total_hits: {
-            name: "Total Hits",
-            val: (user) => {
-                return user.total_hits;
-            },
-        },
-        xp: {
-            name: "XP",
-            val: (user) => {
-                return user.xp;
-            },
-        }
-    }
-
-    const CUSTOM_RANKINGS = [
-        {
-            name: "total score",
-            api_path: "total_score",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ],
-            path: "/rankings/osu/total_score"
-        },
-        {
-            name: "total ss",
-            api_path: "ss",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d]
-            ],
-            path: "/rankings/osu/ss"
-        },
-        {
-            name: "total s",
-            api_path: "s",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d]
-            ],
-            path: "/rankings/osu/s"
-        },
-        {
-            name: "total a",
-            api_path: "a",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d]
-            ],
-            path: "/rankings/osu/a"
-        },
-        {
-            name: "total b",
-            api_path: "b",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d]
-            ],
-            path: "/rankings/osu/b"
-        },
-        {
-            name: "total c",
-            api_path: "c",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d]
-            ],
-            path: "/rankings/osu/c"
-        },
-        {
-            name: "total d",
-            api_path: "d",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-                [CUSTOM_RANKINGS_ATTRIBUTES.b],
-                [CUSTOM_RANKINGS_ATTRIBUTES.c],
-                [CUSTOM_RANKINGS_ATTRIBUTES.d, true]
-            ],
-            path: "/rankings/osu/d"
-        },
-        {
-            name: "profile clears",
-            api_path: "clears",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.clears, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ],
-            path: "/rankings/osu/clears"
-        },
-        {
-            name: "playtime",
-            api_path: "playtime",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.playtime, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ],
-            path: "/rankings/osu/playtime"
-        },
-        {
-            name: "playcount",
-            api_path: "playcount",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.playcount, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ],
-            path: "/rankings/osu/playcount"
-        },
-        {
-            name: "total hits",
-            api_path: "total_hits",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_hits, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ],
-            path: "/rankings/osu/total_hits"
-        },
-        {
-            name: "replays watched",
-            api_path: "replays_watched",
-            attributes: [
-                [CUSTOM_RANKINGS_ATTRIBUTES.total_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ranked_score],
-                [CUSTOM_RANKINGS_ATTRIBUTES.replays_watched, true],
-                [CUSTOM_RANKINGS_ATTRIBUTES.ss],
-                [CUSTOM_RANKINGS_ATTRIBUTES.s],
-                [CUSTOM_RANKINGS_ATTRIBUTES.a],
-            ],
-            path: "/rankings/osu/replays_watched"
-        }
-    ]
-
-    const lb_page_nav_items = [
-        {
-            name: "performance",
-            attr: "global/performance",
-            link: "/rankings/{mode}/global/performance",
-        },
-        {
-            name: "score",
-            attr: "global/score",
-            link: "/rankings/{mode}/global/score",
-        },
-        ...CUSTOM_RANKINGS.map(ranking => {
-            return {
-                name: ranking.name,
-                attr: ranking.api_path,
-                link: ranking.path
-            }
-        }),
-        {
-            name: "country",
-            attr: "country",
-            link: "/rankings/{mode}/country"
-        }, {
-            name: "team",
-            attr: "team",
-            link: "/rankings/{mode}/team"
-        }, {
-            name: "multiplayer",
-            attr: "multiplayer",
-            link: "/multiplayer/rooms/latest"
-        }, {
-            name: "daily challenge",
-            attr: "daily-challenge",
-            link: "/rankings/daily-challenge/.*"
-        }, {
-            name: "seasons",
-            attr: "seasons",
-            link: "/seasons/.*",
-            default_linker: "latest"
-        }, {
-            name: "spotlights (old)",
-            attr: "spotlights",
-            link: "/rankings/{mode}/charts"
-        }, {
-            name: "kudosu",
-            attr: "kudosu",
-            link: "/rankings/kudosu"
-        }
-    ]
-
-    const OFFICIAL_LEADERBOARD_STRUCTURES = {
-        'performance': () => {
-            //its dynamic based on some settings so its a function
-            return [
-                "pos",
-                'change',
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "accuracy", //or "completion", but same position
-                "play_count",
-                "ranked_score",
-                "performance",
-                "ss",
-                "s",
-                "a",
-            ].filter(Boolean);
-        },
-        'score': () => {
-            //its dynamic based on some settings so its a function
-            return [
-                "pos",
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "accuracy", //or "completion", but same position
-                "play_count",
-                "ranked_score",
-                "performance",
-                "ss",
-                "s",
-                "a",
-            ].filter(Boolean);
-        },
-        'rooms': () => {
-            return [
-                "pos",
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "accuracy",
-                "play_count",
-                "total_score"
-            ].filter(Boolean);
-        },
-        'daily-challenge': () => {
-            return [
-                "pos",
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "accuracy",
-                "play_count",
-                "total_score"
-            ].filter(Boolean);
-        },
-        'seasons': () => {
-            return [
-                "pos",
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "total_score",
-                "division",
-            ].filter(Boolean);
-        },
-        'charts': () => {
-            return [
-                "pos",
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "accuracy",
-                "play_count",
-                "total_score",
-                "ranked_score",
-                "ss",
-                "s",
-                "a",
-            ].filter(Boolean);
-        },
-        'kudosu': () => {
-            return [
-                "pos",
-                GM_getValue("leaderboards_seperate_flags_column", true) ? "flags" : undefined,
-                "user",
-                "earned",
-                "available",
-                "spent",
-            ].filter(Boolean);
-        }
     }
 
     const shortNum = (number) => {
@@ -1085,7 +571,7 @@
 
     let IS_RUNNER_ACTIVE = null;
     async function run(trigger = null) {
-        if (IS_RUNNER_ACTIVE){
+        if (IS_RUNNER_ACTIVE) {
             console.log("Runner is already active, skipping run. Trigger: ", trigger);
             return;
         };
@@ -1202,7 +688,7 @@
                 .value-display--rank .value-display__value {
                     font-size: 20px;
                 }
-                    
+
                 .value-display__label {
                     font-size: 14px;
                 }
@@ -1210,29 +696,17 @@
         }
         //check for id "osuplusSettingsBtn"
         //wait for osuplusSettingsBtn
-        try{
+        try {
             createSettingsButton();
-    
-            if (window.location.href.includes("/rankings/") ||
-                window.location.href.includes("/multiplayer/rooms/") ||
-                window.location.href.includes("/seasons/")) {
-                await handleLeaderboardPage(); //Run this BEFORE score rank stuff etc, since those check for added columns and index offsets
-            }
-    
+
             await runUserPage();
-            if (GM_getValue("leaderboards_replace_accuracy", true)) {
-                await runScoreRankCompletionPercentages();
-            }
-            if (GM_getValue("leaderboards_show_score_changes", true)) {
-                await runScoreRankChanges();
-            }
             await runScorePage();
             await runBeatmapPage();
-    
+
             if (GM_getValue("teams_show_team_tags", true)) {
                 await runUsernames();
             }
-        }catch(err){
+        } catch (err) {
             console.error(err);
         }
 
@@ -1344,6 +818,12 @@
             case "checkbox":
                 row_content = createSettingsOptionCheckbox(setting, option_internal_name, option_internal_value);
                 break;
+            case "text":
+                row_content = createSettingsOptionText(setting, option_internal_name, option_internal_value, setting.is_password);
+                break;
+            case "button":
+                row_content = createSettingsOptionButton(setting);
+                break;
         }
 
         if (!row_content) {
@@ -1386,6 +866,49 @@
             GM_setValue(name, switch_input.checked);
             console.log(`[inspector] ${name} set to ${switch_input.checked}`);
         });
+
+        return row;
+    }
+
+    function createSettingsOptionText(setting, name, value, is_password = false) {
+        const row = document.createElement("div");
+        row.classList.add("account-edit-entry", "js-account-edit", "js-form-error", "js-form-error--field");
+
+        const input = document.createElement("input");
+        input.classList.add("account-edit-entry__input", "js-account-edit__input");
+        input.type = is_password ? "password" : "text";
+
+        const label = document.createElement("div");
+        label.classList.add("account-edit-entry__label");
+        label.textContent = setting.name;
+        row.appendChild(label);
+        row.appendChild(input);
+
+        input.value = value;
+
+        input.addEventListener("change", () => {
+            GM_setValue(name, input.value);
+            console.log(`[inspector] ${name} set to ${input.value}`);
+        });
+
+        return row;
+    }
+
+    function createSettingsOptionButton(setting) {
+        const row = document.createElement("div");
+        row.classList.add("account-edit-entry", "account-edit-entry--no-label");
+
+        const button = document.createElement("button");
+        button.classList.add("btn-osu-big", "btn-osu-big--account-edit");
+        button.textContent = setting.name;
+        button.type = "button";
+        row.appendChild(button);
+
+        if (setting.onClick) {
+            button.addEventListener("click", async () => {
+                await setting.onClick();
+            });
+        }
 
         return row;
     }
@@ -1550,8 +1073,8 @@
                 for (const ruleset of MODE_SLUGS_ALT) {
                     const data = await getUserBeatmapScores(active_score.user_id, active_score.beatmap_id, ruleset);
                     const _scores = data.scores;
-                    const _beatmap = data.beatmap;
-                    const _attributes = data.attributes;
+                    const _beatmap = _scores[0]?.beatmap;
+                    const _attributes = _beatmap?.attributes;
 
                     //sort by pp desc
                     _scores.sort((a, b) => {
@@ -1811,10 +1334,10 @@
                     console.error("Mod data not found", mod.acronym);
                     continue;
                 }
-                
+
                 const mod_parent_element = document.createElement("div");
                 mod_parent_element.classList.add('mod', `mod--type-${mod_data.Type}`);
-                
+
                 const mod_element = document.createElement("div");
                 mod_element.classList.add("mod__icon", `mod__icon--${mod_data.Acronym}`);
                 mod_element.setAttribute("data-acronym", mod_data.Acronym);
@@ -1906,12 +1429,13 @@
 
     async function getUserBeatmapScores(user_id, beatmap_id, ruleset) {
         try {
-            const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {
-                method: "GET"
-            });
+            // const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {
+            //     method: "GET"
+            // });
+            const data = await APIGetBeatmapScores(beatmap_id, user_id, ruleset);
 
-            if (response.status === 200) {
-                const data = await response.json();
+            console.log(data);
+            if (data && data.scores) {
                 let attr_cache = {};
                 let _data = data.scores.map(async (score) => {
                     //get the attributes for the score remotely
@@ -1922,7 +1446,7 @@
                     if (attr_cache[mod_str_hash]) {
                         attributes = attr_cache[mod_str_hash];
                     } else {
-                        attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+                        attributes = await APIGetBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
                         attr_cache[mod_str_hash] = attributes;
                     }
                     return new Score(score, attributes, data.beatmap);
@@ -1956,27 +1480,13 @@
                 return null;
             }
 
-            let attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+            // let attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+            let attributes = await APIGetBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
 
-            return new Score(score, attributes);
+            return new Score(score, attributes?.attributes ?? null);
         } catch (err) {
             console.error(err);
         }
-    }
-
-    function countryCodeToUnicodeHex(countryCode) {
-        if (countryCode.length !== 2 || !/^[a-zA-Z]+$/.test(countryCode)) {
-            throw new Error("Input must be a 2-letter country code (e.g., 'JP', 'US')");
-        }
-
-        const c1 = countryCode.toUpperCase().charCodeAt(0);
-        const c2 = countryCode.toUpperCase().charCodeAt(1);
-
-        // Regional Indicator A (🇦) starts at 0x1F1E6 (U+1F1E6)
-        const hex1 = (0x1F1E6 + c1 - 'A'.charCodeAt(0)).toString(16);
-        const hex2 = (0x1F1E6 + c2 - 'A'.charCodeAt(0)).toString(16);
-
-        return `${hex1}-${hex2}`;
     }
 
     async function runBeatmapPage() {
@@ -2561,7 +2071,7 @@
                 team = teams[user_id];
                 if (!team) continue;
 
-                setBigUserCardTeamTag(usercards[i], team.team);
+                setBigUserCardTeamTag(usercards[i], team);
                 continue;
             }
 
@@ -2571,7 +2081,7 @@
 
             if (!team) continue;
 
-            setUserCardBrickTeamTag(usercards[i], team.team);
+            setUserCardBrickTeamTag(usercards[i], team);
         }
     }
 
@@ -2689,936 +2199,31 @@
             return team_map;
         }
 
-        const teams = await fetch(`${SCORE_INSPECTOR_API}extension/users/teams`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${GM_getValue("access_token")}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                ids: user_id_array
-            })
-        }).then(res => res.json()).catch(err => {
-            console.error(err);
-            return null;
-        });
+        const userData = await APIGetUsers(user_id_array);
 
-        if (teams && Array.isArray(teams) && teams.length > 0) {
-            teams.forEach(team => {
-                team_map[team.user_id] = team;
-                USER_TEAM_CACHE[team.user_id] = team;
-            });
+        if (!userData || userData.length === 0) {
+            return team_map;
+        }
 
-            //check if we have any users that don't have teams
-            //remove users that don't have teams from the user_id_array
-            const no_team_users = user_id_array.filter(user_id => !teams.find(team => team.user_id == user_id));
-            if (no_team_users.length > 0) {
-                no_team_users.forEach(user_id => {
-                    SKIP_USER_TEAM_FETCH.push(user_id);
-                });
+        for (const user of userData) {
+            if (user.team) {
+                team_map[user.id] = user.team;
+                USER_TEAM_CACHE[user.id] = user.team;
+
+                //temporary
+                team_map[user.id].color = GetTeamColor(user.team);
+                USER_TEAM_CACHE[user.id].color = GetTeamColor(user.team);
             }
         }
 
+        const no_team_users = user_id_array.filter(user_id => !userData.find(user => user.id == user_id && user.team));
+        if (no_team_users.length > 0) {
+            no_team_users.forEach(user_id => {
+                SKIP_USER_TEAM_FETCH.push(user_id);
+            });
+        }
 
         return team_map;
-    }
-
-    function createPagination(page, country, base_url, max_rank_page = 200) {
-        const nav = document.createElement("nav");
-        nav.classList.add("pagination-v2");
-
-        const nav_prev_col = document.createElement("div");
-        nav_prev_col.classList.add("pagination-v2__col");
-
-        let nav_prev_span = null;
-        if (page === 1) {
-            nav_prev_span = document.createElement("span");
-            nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
-        } else {
-            nav_prev_span = document.createElement("a");
-            nav_prev_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
-            // nav_prev_span.href = `/rankings/osu/ss?page=${page - 1}`;
-            nav_prev_span.href = `${base_url}?page=${page - 1}&country=${country}`;
-        }
-        const nav_prev_span_icon = document.createElement("i");
-        nav_prev_span_icon.classList.add("fas", "fa-angle-left");
-        nav_prev_span.appendChild(nav_prev_span_icon);
-        nav_prev_span.appendChild(document.createTextNode(" "));
-        const nav_prev_span_text = document.createElement("span");
-        nav_prev_span_text.textContent = "PREV";
-        nav_prev_span.appendChild(nav_prev_span_text);
-        nav_prev_col.appendChild(nav_prev_span);
-        nav.appendChild(nav_prev_col);
-
-        const nav_next_col = document.createElement("div");
-        nav_next_col.classList.add("pagination-v2__col");
-
-        const BUTTONS_BEFORE_CURRENT_PAGE = 2;
-        const BUTTONS_AFTER_CURRENT_PAGE = 2;
-
-        //1 and 200 are always shown
-        const _createPageButton = (_page, active = false) => {
-            const li = document.createElement("li");
-            li.classList.add("pagination-v2__item");
-
-            let a = null;
-            if (_page === page) {
-                a = document.createElement("span");
-            } else {
-                a = document.createElement("a");
-            }
-            a.classList.add("pagination-v2__link");
-            // a.href = `/rankings/osu/ss?page=${_page}`;
-            a.href = `${base_url}?page=${_page}&country=${country}`;
-            if (active) {
-                a.classList.add("pagination-v2__link--active");
-            }
-            a.textContent = _page;
-
-            li.appendChild(a);
-
-            return li;
-        }
-
-        const pagination_items = document.createElement("div");
-        pagination_items.classList.add("pagination-v2__col", "pagination-v2__col--pages");
-        nav.appendChild(pagination_items);
-
-        //just loop between 1 and 200
-        for (let i = 1; i <= max_rank_page; i++) {
-            if (i === 1 || i === max_rank_page || (i >= page - BUTTONS_BEFORE_CURRENT_PAGE && i <= page + BUTTONS_AFTER_CURRENT_PAGE)) {
-                pagination_items.appendChild(_createPageButton(i, i === page));
-            } else if (i === page - BUTTONS_BEFORE_CURRENT_PAGE - 1 || i === page + BUTTONS_AFTER_CURRENT_PAGE + 1) {
-                const li = document.createElement("li");
-                li.classList.add("pagination-v2__item");
-                li.textContent = "...";
-                pagination_items.appendChild(li);
-            }
-        }
-
-        let nav_next_span = null;
-        if (page === max_rank_page) {
-            nav_next_span = document.createElement("span");
-            nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick", "pagination-v2__link--disabled");
-        } else {
-            nav_next_span = document.createElement("a");
-            nav_next_span.classList.add("pagination-v2__link", "pagination-v2__link--quick");
-            // nav_next_span.href = `/rankings/osu/ss?page=${page + 1}`;
-            nav_next_span.href = `${base_url}?page=${page + 1}&country=${country}`;
-        }
-        const nav_next_span_icon = document.createElement("i");
-        const nav_next_span_text = document.createElement("span");
-        nav_next_span_text.textContent = "NEXT";
-        nav_next_span.appendChild(nav_next_span_text);
-        nav_next_span.appendChild(document.createTextNode(" "));
-        nav_next_span_icon.classList.add("fas", "fa-angle-right");
-        nav_next_span.appendChild(nav_next_span_icon);
-        nav_next_col.appendChild(nav_next_span);
-        nav.appendChild(nav_next_col);
-
-        return nav;
-    }
-
-    function createRankingFilter(active_country = 'all') {
-        const filter_container = document.createElement("div");
-        filter_container.classList.add("osu-page", "osu-page--ranking-info");
-
-        const filter_grid = document.createElement("div");
-        filter_grid.classList.add("grid-items", "grid-items--ranking-filter");
-        filter_container.appendChild(filter_grid);
-
-        const country_filter = document.createElement("div");
-        country_filter.classList.add("js-react--ranking-country-filter", "u-contents");
-        filter_grid.appendChild(country_filter);
-
-        const country_filter_full = document.createElement("div");
-        country_filter_full.classList.add("ranking-filter", "ranking-filter--full");
-        country_filter.appendChild(country_filter_full);
-
-        const country_filter_label = document.createElement("div");
-        country_filter_label.classList.add("ranking-filter__title");
-        country_filter_label.textContent = "Country";
-        country_filter_full.appendChild(country_filter_label);
-
-        const country_select_parent = document.createElement("div");
-        country_select_parent.classList.add("select-options", "select-options--ranking");
-        country_filter_full.appendChild(country_select_parent);
-
-        //contains current selected country
-        const country_select = document.createElement("div");
-        country_select.classList.add("select-options__select");
-        country_select_parent.appendChild(country_select);
-
-        //contains all the countries
-        const country_selector = document.createElement("div");
-        country_selector.classList.add("select-options__selector");
-        country_select_parent.appendChild(country_selector);
-
-        country_select.addEventListener("click", function (event) {
-            event.preventDefault();
-            country_select_parent.classList.toggle("select-options--selecting");
-        });
-
-        //test country
-        if (!active_country || active_country === "all") {
-            country_select.appendChild(getCountryDropdownItem("all", 'All', false, true));
-        } else {
-            const country = COUNTRY_DATA.find(c => c.acronym === active_country);
-            country_select.appendChild(getCountryDropdownItem(country.acronym, country.name, false, true));
-        }
-
-        country_selector.appendChild(getCountryDropdownItem('all', 'All', false, false));
-        // COUNTRY_DATA.forEach(country => {
-        for (const country of COUNTRY_DATA) {
-            if (country.display == 0 || country.acronym == "XX") continue;
-            country_selector.appendChild(getCountryDropdownItem(country.acronym, country.name, country.acronym == active_country));
-        };
-
-        return filter_container;
-    }
-
-    function getCountryDropdownItem(acronym, label, selected = false, add_decoration = false) {
-        const a = document.createElement("a");
-        a.classList.add("select-options__option");
-        if (selected) {
-            a.classList.add("select-options__option--selected");
-        }
-        // a.href = `https://osu.ppy.sh/rankings/osu/performance?country=${country}`;
-        //get current url without query string
-        const url = window.location.href.split("?")[0];
-        if (acronym === "all") {
-            a.href = `${url}`;
-        } else {
-            a.href = `${url}?country=${acronym}`;
-        }
-
-        const label_div = document.createElement("div");
-        label_div.classList.add("u-ellipsis-overflow");
-        label_div.textContent = label;
-        a.appendChild(label_div);
-
-        if (add_decoration) {
-            const decorator_parent = document.createElement("div");
-            decorator_parent.classList.add("select-options__decoration");
-
-            const decorator = document.createElement("span");
-            decorator.classList.add("fas", "fa-chevron-down");
-            decorator_parent.appendChild(decorator);
-
-            a.appendChild(decorator_parent);
-        }
-
-        return a;
-    }
-
-    function createRankingNavigation(data) {
-        data.nav.innerHTML = "";
-        data.items.forEach(item => {
-            if (!data.nav.querySelector(`[data-content="${item.attr}"]`)) {
-                const li = document.createElement("li");
-                li.classList.add("header-nav-v4__item");
-                data.nav.appendChild(li);
-
-                const a = document.createElement("a");
-                a.classList.add("header-nav-v4__link");
-                a.href = `https://osu.ppy.sh${item.link.replace("/.*", item.default_linker ? `/${item.default_linker}` : "").replace("{mode}", data.mode)}`;
-                a.textContent = item.name;
-                a.setAttribute("data-content", item.attr);
-                li.appendChild(a);
-
-                let is_active = false;
-
-                if (data.active && item.attr.toLowerCase() === data.active.toLowerCase()){
-                    is_active = true;
-                }
-
-                if(is_active){
-                    a.classList.add("header-nav-v4__link--active");
-                }
-            }
-        });
-    }
-
-    function createTableHeaderItem(text = '', is_focus = false, is_grade = false) {
-        const th = document.createElement("th");
-        th.textContent = text;
-        th.classList.add("ranking-page-table__heading");
-        if (is_grade) {
-            th.classList.add("ranking-page-table__heading--grade");
-        }
-        if (is_focus) {
-            th.classList.add("ranking-page-table__heading--focused");
-        }
-        return th;
-    }
-
-    async function handleLeaderboardPage() {
-        //find ul with class "header-nav-v4 header-nav-v4--list"
-        let headerNav = document.getElementsByClassName("header-nav-v4 header-nav-v4--list")[0];
-
-        //check if we are on any of the rankings pages in CUSTOM_RANKINGS
-        //remove the query string from the url
-        let url = window.location.href.split("?")[0];
-        //remove the domain from the url
-        url = url.replace("https://osu.ppy.sh", "");
-
-        let mode = 'osu';
-        let ranking = null;
-        let is_global = url.includes("/global");
-        // /rankings/osu/...
-        let mode_index = 2;
-        let ranking_index = is_global ? 4 : 3;
-        // /rankings/taiko/... we need to get the mode from the url
-        if (url.includes("/rankings/")) {
-            mode = url.split("/")[mode_index];
-            if (!MODE_SLUGS_ALT.includes(mode)) {
-                mode = 'osu';
-                ranking_index = mode_index;
-            }
-
-        } else if (url.includes("/multiplayer/rooms/")) {
-            ranking_index = 1;
-        } else if (url.includes("/seasons/")) {
-            ranking_index = 1;
-        }
-        ranking = url.split("/")[ranking_index];
-
-        const active_custom_ranking = CUSTOM_RANKINGS.find(ranking => ranking.path === url);
-        // const active_custom_ranking = lb_page_nav_items.find(item => item.link === url);
-        if (active_custom_ranking) {
-            //set body style to "--base-hue-default: 115; --base-hue-override: 115"
-            document.body.style.setProperty("--base-hue-default", 115);
-            document.body.style.setProperty("--base-hue-override", 115);
-
-            //get page from url query
-            let page = new URLSearchParams(window.location.search).get("page") ?? 1;
-            page = Number(page) || 1;
-
-            let country = new URLSearchParams(window.location.search).get("country") ?? null;
-
-            if (country && country !== "all") {
-                country = country.toUpperCase();
-                //check if country is valid
-                if (!COUNTRY_DATA.find(c => c.acronym === country)) {
-                    country = null;
-                }
-            }
-
-            // const container = await runCleanErrorPage(active_custom_ranking.name, "rankings");
-            const page_data = await runCleanErrorPage(active_custom_ranking.name, "rankings", {
-                title: "rankings"
-            });
-
-            const container = page_data.container;
-            headerNav = page_data.header_nav;
-
-            const filter_container = createRankingFilter(country);
-            container.appendChild(filter_container);
-
-            const scores_container = document.createElement("div");
-            scores_container.classList.add("osu-page", "osu-page--generic");
-            scores_container.id = "scores";
-            container.appendChild(scores_container);
-
-
-            //first try to get data now
-            const fetch_url = `${SCORE_INSPECTOR_API}extension/rank/${active_custom_ranking.api_path}/${page}/${country ?? ""}`;
-            const response = await fetch(fetch_url, {
-                headers: {
-                    "Access-Control-Allow-Origin": "*",
-                }
-            });
-
-            let data = null;
-            let total_pages = null;
-            try {
-                if (response.status !== 200) {
-                    throw new Error("An error occurred while fetching the data. Please try again later.");
-                }
-                data = await response.json();
-                total_pages = Number(response.headers.get("X-Total-Pages") ?? 200);
-            } catch (e) {
-                scores_container.innerHTML = "An error occurred while fetching the data. Please try again later.";
-                return;
-            }
-
-            scores_container.appendChild(createPagination(page, country, `/rankings/osu/${active_custom_ranking.api_path}`, total_pages));
-
-            const ranking_page = document.createElement("div");
-            ranking_page.classList.add("ranking-page");
-            scores_container.appendChild(ranking_page);
-
-            const ranking_table = document.createElement("table");
-            ranking_table.classList.add("ranking-page-table");
-            ranking_page.appendChild(ranking_table);
-
-            const ranking_thead = document.createElement("thead");
-            ranking_table.appendChild(ranking_thead);
-
-            ranking_thead.appendChild(createTableHeaderItem());
-            if (GM_getValue("leaderboards_seperate_flags_column", true)) { ranking_thead.appendChild(createTableHeaderItem()); }
-            ranking_thead.appendChild(createTableHeaderItem());
-
-            for (let attr of active_custom_ranking.attributes) {
-                ranking_thead.appendChild(createTableHeaderItem(attr[0].name, attr[1] ?? false));
-            }
-
-            const ranking_tbody = document.createElement("tbody");
-            ranking_table.appendChild(ranking_tbody);
-
-            const _addTableBodyRow = (data, i) => {
-                const tr = document.createElement("tr");
-                tr.classList.add("ranking-page-table__row");
-
-                const td_rank = document.createElement("td");
-                td_rank.classList.add("ranking-page-table__column", "ranking-page-table__rank");
-                td_rank.textContent = `#${i + 1 + (page - 1) * 50}`;
-                tr.appendChild(td_rank);
-
-                let td_flags = null;
-                if (GM_getValue("leaderboards_seperate_flags_column", true)) {
-                    td_flags = document.createElement("td");
-                    td_flags.classList.add("ranking-page-table__column", "ranking-page-table__column--flag");
-                    tr.appendChild(td_flags);
-                }
-
-                const td_user = document.createElement("td");
-                td_user.classList.add("ranking-page-table__column", "ranking-page-table__column--main");
-                tr.appendChild(td_user);
-
-
-                const td_user_container = document.createElement("div");
-                td_user_container.classList.add("ranking-page-table-main");
-                td_user.appendChild(td_user_container);
-
-                const td_user_flag = document.createElement("div");
-                td_user_flag.classList.add("ranking-page-table-main__flag");
-                // td_user_container.appendChild(td_user_flag);
-                if (td_flags) {
-                    const td_flags_container = document.createElement("div");
-                    td_flags_container.classList.add("ranking-page-table-main");
-                    td_flags_container.appendChild(td_user_flag);
-                    td_flags.appendChild(td_flags_container);
-                } else {
-                    td_user_container.appendChild(td_user_flag);
-                }
-
-                const td_user_flag_contents = document.createElement("div");
-                td_user_flag_contents.classList.add("u-contents");
-                td_user_flag.appendChild(td_user_flag_contents);
-
-                const td_user_country_flag_element = document.createElement("a");
-                td_user_country_flag_element.classList.add("flag-country");
-                td_user_country_flag_element.style.backgroundImage = `url(https://flagpedia.net/data/flags/h24/${data.country_code.toLowerCase()}.webp)`;
-                td_user_country_flag_element.setAttribute("title", data.country_name);
-                td_user_country_flag_element.href = `/rankings/osu/${active_custom_ranking.api_path}?country=${data.country_code}`;
-                td_user_flag_contents.appendChild(td_user_country_flag_element);
-                if (!GM_getValue("leaderboards_show_country_flags", true)) {
-                    td_user_country_flag_element.style.display = "none";
-                }
-
-                if (data.team) {
-                    const td_user_team_flag_element = document.createElement("a");
-                    td_user_team_flag_element.classList.add("flag-team");
-                    td_user_team_flag_element.style.backgroundImage = `url(${data.team.flag_url})`;
-                    td_user_team_flag_element.setAttribute("title", data.team.name);
-                    td_user_team_flag_element.href = `https://osu.ppy.sh/teams/${data.team.id}`;
-                    td_user_flag_contents.appendChild(td_user_team_flag_element);
-                    if (!GM_getValue("leaderboards_show_team_flags", true)) {
-                        td_user_team_flag_element.style.display = "none";
-                    }
-                }
-
-                const td_user_card = document.createElement("a");
-                td_user_card.classList.add("ranking-page-table-main__link", "js-usercard");
-                td_user_card.href = `/users/${data.user_id}`;
-                td_user_card.setAttribute("data-user-id", data.user_id);
-                td_user_card.setAttribute("data-tooltip-position", "right center");
-                td_user_container.appendChild(td_user_card);
-
-
-                if (GM_getValue("leaderboards_show_avatars", true)) {
-                    const td_user_icon_container = document.createElement("span");
-                    td_user_icon_container.classList.add("ranking-page-table-main__flag");
-                    td_user_card.appendChild(td_user_icon_container);
-
-                    const td_user_icon_element = document.createElement("span");
-                    td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
-                    td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${data.user_id})`;
-                    td_user_icon_container.appendChild(td_user_icon_element);
-                }
-
-                const td_user_name_element = document.createElement("span");
-                td_user_name_element.classList.add("ranking-page-table-main__link-text");
-                td_user_name_element.textContent = data.username;
-                td_user_card.appendChild(td_user_name_element);
-
-                for (let attr of active_custom_ranking.attributes) {
-                    const formatter = attr[0].formatter ?? ((val) => val.toLocaleString());
-                    const td = document.createElement("td");
-                    td.classList.add("ranking-page-table__column");
-                    if (!attr[1]) {
-                        td.classList.add("ranking-page-table__column--dimmed");
-                    }
-                    td.textContent = formatter(attr[0].val(data));
-                    if (attr[0].tooltip_formatter) {
-                        td.setAttribute("data-html-title", attr[0].tooltip_formatter(Number(attr[0].val(data) ?? 0)));
-                        td.setAttribute("title", "");
-                    }
-                    tr.appendChild(td);
-                }
-
-                return tr;
-            }
-
-            data.forEach((d, i) => {
-                ranking_tbody.appendChild(_addTableBodyRow(d, i));
-            });
-
-            //another pagination at the bottom
-            scores_container.appendChild(createPagination(page, country, `/rankings/osu/${active_custom_ranking.api_path}`, total_pages));
-
-            // find 'a' with data-menu-target = "nav2-menu-popup-rankings"
-            let nav2_menu_link_bar = document.querySelector('a[data-menu-target="nav2-menu-popup-rankings"]');
-            //get child span
-            let nav2_menu_link_bar_span = nav2_menu_link_bar.querySelector("span");
-
-            //add a span with class "nav2__menu-link-bar u-section--bg-normal"
-            let nav2_menu_link_bar_span_new = document.createElement("span");
-            nav2_menu_link_bar_span_new.classList.add("nav2__menu-link-bar", "u-section--bg-normal");
-            nav2_menu_link_bar_span.appendChild(nav2_menu_link_bar_span_new);
-        } else {
-            const valid_rankings = ["performance", "score", "rooms", "daily-challenge", "seasons", "charts", "kudosu"];
-            if (GM_getValue("leaderboards_seperate_flags_column", true) && valid_rankings.includes(ranking)) {
-                const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES[ranking]();
-
-                const FLAGS_INDEX = LEADERBOARD_STRUCTURE.indexOf("flags");
-                const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
-
-                //get thead
-                const table = document.getElementsByClassName("ranking-page-table")[0];
-                const thead = table.getElementsByTagName("thead")[0];
-                const thead_tr = thead.getElementsByTagName("tr")[0];
-                const tbody = table.getElementsByTagName("tbody")[0];
-
-                //after the first element in tbody
-                thead_tr.insertBefore(createTableHeaderItem(), thead_tr.children[FLAGS_INDEX]);
-
-                //go through each row
-                const rows = tbody.getElementsByTagName("tr");
-                for (let i = 0; i < rows.length; i++) {
-                    const row = rows[i];
-                    //for now, just add a blank td
-                    const td_flags = document.createElement("td");
-                    td_flags.classList.add("ranking-page-table__column", "ranking-page-table__column--flag");
-                    row.insertBefore(td_flags, row.children[FLAGS_INDEX]);
-
-                    //create element ranking-page-table-main
-                    const td_user_flag = document.createElement("div");
-                    td_user_flag.classList.add("ranking-page-table-main");
-                    td_flags.appendChild(td_user_flag);
-
-                    const td_user_flag_contents = document.createElement("div");
-                    td_user_flag_contents.classList.add("u-contents");
-                    td_user_flag.appendChild(td_user_flag_contents);
-
-                    //find all elements with class ranking-page-table-main__flag in the user column, and move them to the new td
-                    const user_td = row.children[USER_INDEX];
-                    const user_td_children = user_td.getElementsByClassName("ranking-page-table-main__flag");
-                    // append them all to td_user_flag_contents
-                    for (let j = 0; j < user_td_children.length; j++) {
-                        td_user_flag_contents.appendChild(user_td_children[j].cloneNode(true)); //for some reason if we don't clone, it doesn't work properly
-                    }
-
-                    //remove the original elements from the user column
-                    while (user_td_children.length > 0) {
-                        user_td_children[0].remove();
-                    }
-                }
-            }
-
-            if (GM_getValue("leaderboards_show_avatars", true) && valid_rankings.includes(ranking)) {
-                const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES[ranking]();
-                const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
-
-                const table = document.getElementsByClassName("ranking-page-table")[0];
-                const thead = table.getElementsByTagName("thead")[0];
-                const thead_tr = thead.getElementsByTagName("tr")[0];
-                const tbody = table.getElementsByTagName("tbody")[0];
-
-                const rows = tbody.getElementsByTagName("tr");
-                for (let i = 0; i < rows.length; i++) {
-                    const td_user = rows[i].children[USER_INDEX];
-                    const user_card = td_user.getElementsByClassName("js-usercard")[0];
-                    const user_id = user_card.getAttribute("data-user-id");
-
-                    const td_user_container = td_user.children[0];
-
-                    const td_user_icon_container = document.createElement("span");
-                    td_user_icon_container.classList.add("ranking-page-table-main__flag");
-                    // td_user_container.appendChild(td_user_icon_container);
-                    //at front
-                    user_card.insertBefore(td_user_icon_container, user_card.children[0]);
-
-                    const td_user_icon_element = document.createElement("span");
-                    td_user_icon_element.classList.add("avatar", "avatar--dynamic-size");
-                    td_user_icon_element.style.backgroundImage = `url(https://a.ppy.sh/${user_id})`;
-                    td_user_icon_container.appendChild(td_user_icon_element);
-                }
-
-            }
-
-            if (!GM_getValue("leaderboards_show_country_flags", true)) {
-                const country_flags = document.getElementsByClassName("flag-country");
-                for (let i = 0; i < country_flags.length; i++) {
-                    let element = country_flags[i].closest(".ranking-page-table-main__flag");
-                    if (element?.classList.contains("ranking-page-table-main__flag")) {
-                        element.style.display = "none";
-                    }
-                }
-            }
-
-            if (!GM_getValue("leaderboards_show_team_flags", true)) {
-                const team_flags = document.getElementsByClassName("flag-team");
-                for (let i = 0; i < team_flags.length; i++) {
-                    let element = team_flags[i].closest(".ranking-page-table-main__flag");
-                    if (element?.classList.contains("ranking-page-table-main__flag")) {
-                        element.style.display = "none";
-                    }
-                }
-            }
-        }
-
-        // const active_ranking = lb_page_nav_items.find(item => item.link.replace("{mode}", mode) === url);
-        const active_ranking = lb_page_nav_items.find(item => {
-            //some links may have "/*" at the end, in that case, we need to check if the url starts with the link instead of checking for equality
-            if (item.link.includes("/.*")) {
-                return url.startsWith(item.link.replace("{mode}", mode).replace("/.*", ""));
-            }
-
-            return item.link.replace("{mode}", mode) === url;
-        });
-        //empty the header nav
-        createRankingNavigation({
-            nav: headerNav,
-            items: lb_page_nav_items,
-            mode: mode,
-            // active: active_custom_ranking ? active_custom_ranking.api_path : null
-            active: active_ranking ? active_ranking.attr : null
-        });
-
-        //if we are on daily-challenge page
-        if (window.location.href.includes("/rankings/daily-challenge")) {
-            //wait 0.5s for the page to load
-            await new Promise(r => setTimeout(r, 1000));
-            //we need to patch out issue from subdivide nations extension
-            //get all elements with class "ranking-page-table__user-link" under "ranking-page-table"
-            const userLinks = document.getElementsByClassName("ranking-page-table__user-link");
-
-            //loop through all userLinks
-            for (let i = 0; i < userLinks.length; i++) {
-                //check if we have 2 divs with style "display: inline-block"
-                //if we do, this row is affected by subdivide nations extension
-
-                //if we have 2 divs with style "display: inline-block"
-                if (userLinks[i].children[0].style.display === "inline-block" && userLinks[i].children[1].style.display === "inline-block") {
-                    //move the first span of the second div to the first div as 2nd child
-                    userLinks[i].children[0].appendChild(userLinks[i].children[1].children[0]);
-
-                    //move 2nd child of first div, to the back of the first div
-                    userLinks[i].children[0].appendChild(userLinks[i].children[0].children[1]);
-
-                    //remove the second div
-                    userLinks[i].removeChild(userLinks[i].children[1]);
-
-                    //move all children of the first div to the parent div and remove the first div
-                    while (userLinks[i].children[0].children.length > 0) {
-                        userLinks[i].appendChild(userLinks[i].children[0].children[0]);
-                    }
-
-                    userLinks[i].removeChild(userLinks[i].children[0]);
-                }
-            }
-            //else if we are on "/rankings/{mode}/team" page, mode can be any string, we don't care
-        } else if (window.location.href.includes("/rankings/") && window.location.href.includes("/team")) {
-            //get element with class "sort__items"
-            const sort_items = document.getElementsByClassName("sort__items")[0];
-
-            //add a new item which redirects to our custom team rankings website
-            const sort_item_redirect = document.createElement("a");
-            sort_item_redirect.classList.add("sort__item", "sort__item--button");
-            sort_item_redirect.href = `https://kirino.sh/teams/`;
-            sort_item_redirect.target = "_blank";
-            sort_item_redirect.textContent = "More Leaderboards";
-
-            sort_items.appendChild(sort_item_redirect);
-        }
-    }
-
-    const DISALLOWED_FILTERS = ["friends", "country", "variant"];
-    async function runScoreRankChanges() {
-        //url has to match: "/rankings/{mode}/score{?page=1}"
-        const _url = window.location.href;
-        const mode = _url.match(/\/rankings\/(osu|taiko|fruits|mania)\/global\/score/)?.[1];
-        if (!mode) {
-            return;
-        }
-
-        const url = new URL(_url);
-        const params = url.searchParams;
-        for (const param of params.keys()) {
-            let value = params.get(param);
-            if (DISALLOWED_FILTERS.includes(param) && value !== "all") {
-                return;
-            }
-        }
-
-        const mode_id = MODE_SLUGS_ALT.indexOf(mode);
-        if (mode_id === -1) {
-            return;
-        }
-
-        await WaitForElement('.ranking-page-table');
-
-        const table = document.getElementsByClassName('ranking-page-table')[0];
-        const thead = table.getElementsByTagName('thead')[0];
-        const tbody = table.getElementsByTagName('tbody')[0];
-        const rows = tbody.getElementsByTagName('tr');
-        const headerRow = thead.getElementsByTagName('tr')[0];
-
-        const headerCells = headerRow.getElementsByTagName('th');
-
-        let LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES.score();
-
-        const RANK_INDEX = LEADERBOARD_STRUCTURE.indexOf("pos");
-        const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
-        const RANK_CHANGE_INDEX = RANK_INDEX + 1;
-        const SCORE_INDEX = LEADERBOARD_STRUCTURE.indexOf("ranked_score");
-        const SCORE_CHANGE_OFFSET = 2;
-        const SCORE_CHANGE_INDEX = SCORE_INDEX + 1 + SCORE_CHANGE_OFFSET;
-
-        let rank_change_date = null;
-
-        //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
-        let ids = [];
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-
-            //get the user id from the data-user-id attribute
-            //from column 1, get the the first child element with class 'js-usercard' in it, then get the data-user-id attribute
-            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
-            ids.push(user_id);
-        }
-
-        //get data
-        //post with user_ids
-        const result = await fetch(`${SCORE_INSPECTOR_API}extension/score_rank_history/${mode_id}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ids: ids })
-        });
-
-        const data = await result.json();
-
-        if (!data || data.error) {
-            console.error(data.error);
-            return;
-        }
-
-        const getRankChangeIcon = (change) => {
-            const td = document.createElement('td');
-
-            //ranking-page-table__column ranking-page-table__column--rank-change-icon ranking-page-table__column--rank-change-none
-            //ranking-page-table__column ranking-page-table__column--rank-change ranking-page-table__column--rank-change-up
-            td.classList.add('ranking-page-table__column', 'ranking-page-table__column--rank-change');
-            if (change === 0) {
-                td.classList.add('ranking-page-table__column--rank-change-none');
-            } else if (change > 0) {
-                td.classList.add('ranking-page-table__column--rank-change-up');
-            } else {
-                td.classList.add('ranking-page-table__column--rank-change-down');
-            }
-
-            return td;
-        }
-
-        const getRankChangeText = (change, format = false) => {
-            const td = document.createElement('td');
-
-            //ranking-page-table__column ranking-page-table__column--rank-change-value ranking-page-table__column--rank-change-none
-            td.classList.add('ranking-page-table__column', 'ranking-page-table__column--rank-change-value');
-
-            if (change === 0) {
-                td.classList.add('ranking-page-table__column--rank-change-none');
-            } else if (change > 0) {
-                td.classList.add('ranking-page-table__column--rank-change-up');
-            } else {
-                td.classList.add('ranking-page-table__column--rank-change-down');
-            }
-
-            if (change !== 0) {
-                if (format) {
-                    td.textContent = formatNumberAsSize(change);
-                    td.title = change.toLocaleString();
-                } else {
-                    td.textContent = Math.abs(change);
-                }
-            }
-
-            return td;
-        }
-
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-            const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
-            const current_rank_str = cells[RANK_INDEX].textContent; //"#1", "#2", etc
-            const current_rank = parseInt(current_rank_str.trim().slice(1)); //remove the "#" and parse to int
-
-            //get title
-            // const current_score_str = cells[SCORE_INDEX].children[0].getAttribute('title');
-            const current_score_str = cells[SCORE_INDEX].textContent; //this is the human-readable
-            const current_score = Number(current_score_str.replace(/,/g, ''));
-
-            if(i==0){
-                console.log(`Current rank: ${current_rank}, Current score: ${current_score}`);
-            }
-
-            const rank_change_data = data.find(d => d.osu_id == user_id);
-            let change_rank = 0;
-            let change_score = 0;
-
-            if (rank_change_data) {
-                let old_rank = parseInt(rank_change_data.rank);
-                let old_score = parseInt(rank_change_data.ranked_score);
-                change_rank = old_rank - current_rank;
-                change_score = current_score - old_score;
-
-                if (!rank_change_date) {
-                    rank_change_date = new Date(rank_change_data.date);
-                }
-            }
-
-            const rank_change_text = getRankChangeText(change_rank);
-            row.insertBefore(rank_change_text, cells[RANK_CHANGE_INDEX]);
-
-            const rank_change_icon = getRankChangeIcon(change_rank);
-            row.insertBefore(rank_change_icon, cells[RANK_CHANGE_INDEX]);
-
-            //human readable score change
-            const score_change_text = getRankChangeText(change_score, true);
-            row.insertBefore(score_change_text, cells[SCORE_CHANGE_INDEX]);
-
-            const score_change_icon = getRankChangeIcon(change_score);
-            row.insertBefore(score_change_icon, cells[SCORE_CHANGE_INDEX]);
-        }
-
-        //insert empty header cells for rank change at RANK_CHANGE_INDEX
-        headerRow.insertBefore(document.createElement('th'), headerCells[RANK_CHANGE_INDEX]);
-        headerRow.insertBefore(document.createElement('th'), headerCells[RANK_CHANGE_INDEX]);
-
-        //insert empty header cells for score change at SCORE_CHANGE_INDEX
-        headerRow.insertBefore(document.createElement('th'), headerCells[SCORE_CHANGE_INDEX]);
-        headerRow.insertBefore(document.createElement('th'), headerCells[SCORE_CHANGE_INDEX]);
-
-        if (rank_change_date) {
-            //get the 2nd pagination
-            const pagination = document.getElementsByClassName("pagination-v2")[1];
-
-            //below this, add a text that tells us from what date the score difference is from
-            const dateText = document.createElement("div");
-            dateText.classList.add("ranking-page-table__date");
-            dateText.textContent = `Rank changes are from ${rank_change_date.toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-            })}`;
-            pagination.parentNode.insertBefore(dateText, pagination);
-        }
-    }
-
-    //replaces the accuracy column with a completion percentage column
-    async function runScoreRankCompletionPercentages() {
-        try {
-            //check if we are on "/rankings/osu/score" page
-            const _url = window.location.href;
-            if (!_url.includes("/rankings/osu/score")) {
-                return;
-            }
-
-            //wait for class 'ranking-page-table' to load
-            await WaitForElement('.ranking-page-table');
-
-            //get all the rows in the table
-            //rows are in the tbody of the table
-            const table = document.getElementsByClassName('ranking-page-table')[0];
-            const thead = table.getElementsByTagName('thead')[0];
-            const tbody = table.getElementsByTagName('tbody')[0];
-            const rows = tbody.getElementsByTagName('tr');
-            const headerRow = thead.getElementsByTagName('tr')[0];
-
-            const LEADERBOARD_STRUCTURE = OFFICIAL_LEADERBOARD_STRUCTURES.score();
-
-            //accuracy row is index 2
-            const USER_INDEX = LEADERBOARD_STRUCTURE.indexOf("user");
-            const ACCURACY_INDEX = LEADERBOARD_STRUCTURE.indexOf("accuracy");
-
-            //change header to "Completion"
-            const headerCells = headerRow.getElementsByTagName('th');
-            headerCells[ACCURACY_INDEX].textContent = "Completion";
-
-            //change all rows to completion percentage (first do a dash, then do the percentage when the data is loaded)
-            let ids = [];
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const cells = row.getElementsByTagName('td');
-                cells[ACCURACY_INDEX].textContent = "-";
-
-                //get the user id from the data-user-id attribute
-                //from column 1, get the the first child element with class 'js-usercard' in it, then get the data-user-id attribute
-                const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
-                ids.push(user_id);
-            }
-
-            //comma separated string
-            const id_string = ids.join(',');
-
-            const url = `${SCORE_INSPECTOR_API}users/stats/completion_percentage/${id_string}`;
-            const response = await fetch(url, {
-                headers: {
-                    "Access-Control-Allow-Origin": "*"
-                },
-                signal: AbortSignal.timeout(5000)
-            });
-
-
-            const data = await response.json();
-
-            if (data.error) {
-                console.error(data.error);
-                return;
-            }
-
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const cells = row.getElementsByTagName('td');
-                const user_id = cells[USER_INDEX].getElementsByClassName('js-usercard')[0].getAttribute('data-user-id');
-                let completion_percentage = data.find(d => d.user_id == user_id)?.completion ?? "-";
-                if (completion_percentage !== "-") {
-                    //cap it at 100%, used profile stats for SS,S,A, which may be different from osu!alt
-                    completion_percentage = Math.min(completion_percentage, 100);
-                    completion_percentage = completion_percentage.toFixed(2);
-                }
-
-                //round to 2 decimal places
-                cells[ACCURACY_INDEX].textContent = `${completion_percentage}%`;
-            }
-        } catch (e) {
-            console.error(e);
-        }
     }
 
     async function runUserPage() {
@@ -3650,12 +2255,7 @@
 
         const data = await getUserData(user_id, username, mode);
 
-        const user_exists = data.user != null &&
-            (typeof data.coe !== "undefined" || typeof data.coe.error !== "string")
-
-        if (data.coe && !data.coe.error) {
-            setOrCreateCoeBannerElement(data.coe);
-        }
+        const user_exists = data.user != null;
 
         if (GM_getValue("teams_show_team_tags", true) && data.team) {
             setOrCreateUserTeamTagElement(data.team);
@@ -3672,15 +2272,10 @@
 
             //if the user does not exist, give informational alert.
             if (!user_exists) {
-                if (mode === "osu") {
-                    //we only show the popup for osu! mode, other modes are not supported period.
-                    // popup("No osu!alt statistics available for this user.");
-                    setNoAvailableStatsLabel();
-                }
                 //skip other checks as redundant
                 return;
             }
-            setOrCreateStatisticsElements(data);
+            setOrCreateStatisticsElements(data, mode);
         }
     }
 
@@ -3735,36 +2330,34 @@
         const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
         let user_data = null;
         try {
-            const _user_data = await fetch(`${SCORE_INSPECTOR_API}extension/profile`, {
+            // Inspector/alt data
+            const alt_user_data = await fetch(`${SCORE_INSPECTOR_API}extension/profile`, {
                 headers: {
-                    "Access-Control-Allow-Origin": "*",
                     "Content-Type": "application/json"
                 },
                 method: "POST",
                 body: JSON.stringify({
                     user_id: user_id,
                     mode: modeIndex,
-                    username: username
                 })
             });
-            user_data = await _user_data.json();
+            user_data = await alt_user_data.json();
 
             if (!user_data || user_data.error) {
                 user_data = {};
             }
 
-            //get COE data
-            const coe_data = await fetch(`${SCORE_INSPECTOR_API}extension/coe/${user_id}`);
-            user_data.coe = await coe_data.json();
+            const osu_team = await getTeams([user_id]);
 
-            if (!user_data.coe.error) {
-                //capitalize first letter of each word in the roles
-                user_data.coe.user.roles = user_data.coe.user.roles.map(role => role.replace(/\b\w/g, l => l.toUpperCase()));
+            if (osu_team) {
+                user_data.team = osu_team[user_id];
+            }
 
-                //if affiliate is not null, add "Affiliate" to the roles
-                if (user_data.coe.user.affiliate) {
-                    user_data.coe.user.roles.push("Affiliate");
-                }
+            const score_rank_data = await APIGetScoreRank(user_id, modeIndex);
+
+            if (score_rank_data) {
+                user_data.stats = {};
+                user_data.stats.scoreRank = score_rank_data?.[0]?.rank ?? null;
             }
 
             return user_data;
@@ -3848,10 +2441,10 @@
         }
     }
 
-    function setOrCreateStatisticsElements(data) {
+    function setOrCreateStatisticsElements(data, mode) {
         //element with "profile-rank-count" class is the parent of the rank elements
         //every rank is an div element, that div has a child with the class "profile-rank--XH", "profile-rank--X", "profile-rank--SH", "profile-rank--S", "profile-rank--A"
-
+        console.log(data, mode);
         //we follow the structure to add B, C and D ranks
         var parent = document.getElementsByClassName("profile-rank-count")[0];
 
@@ -3870,8 +2463,9 @@
                 div.className = `score-rank score-rank--${rank} score-rank--profile-page`;
                 b.appendChild(div);
                 let rankText = null;
-                if (data.user?.[`${rank.toLowerCase()}_count`] !== undefined && !isNaN(data.user?.[`${rank.toLowerCase()}_count`])) {
-                    rankText = document.createTextNode(Number(data.user?.[`${rank.toLowerCase()}_count`]).toLocaleString());
+                let valueName = `${mode}_grade_counts_${rank.toLowerCase()}`;
+                if (data.user?.[valueName] !== undefined && !isNaN(data.user?.[valueName])) {
+                    rankText = document.createTextNode(Number(data.user?.[valueName]).toLocaleString());
                 } else {
                     rankText = document.createTextNode('-');
 
@@ -3881,22 +2475,6 @@
                 }
                 b.appendChild(rankText);
                 parent.appendChild(b);
-            });
-
-            //for all XH, X, SH, S, A ranks, we set a tooltip display alt values
-            ["XH", "X", "SH", "S", "A"].forEach(rank => {
-                var rankElement = document.getElementsByClassName(`score-rank--${rank}`)[0];
-                if (rankElement) {
-                    let _rank = rank.toLowerCase();
-                    if (_rank === 'xh') _rank = 'ssh';
-                    if (_rank === 'x') _rank = 'ss';
-                    let val = Number(data.user?.[`alt_${_rank}_count`]).toLocaleString();
-                    if (isNaN(Number(data.user?.[`alt_${_rank}_count`]))) val = 'Data not available';
-                    rankElement.setAttribute("data-html-title", `
-                        osu!alt: ${val}
-                        `);
-                    rankElement.setAttribute("title", "");
-                }
             });
 
             //find the parent of score-rank--A
@@ -3925,14 +2503,13 @@
         // profile_detail__rank.style.gap = "8px";
 
         const clears = data.user ? (
-            data.user.alt_ssh_count +
-            data.user.alt_ss_count +
-            data.user.alt_sh_count +
-            data.user.alt_s_count +
-            data.user.alt_a_count +
-            data.user.b_count + data.user.c_count + data.user.d_count) : 'NaN';
-        const profile_clears = data.user ? (data.user.ssh_count + data.user.ss_count + data.user.sh_count + data.user.s_count + data.user.a_count) : 'NaN';
-        var clearsDisplay = getValueDisplay("inspector_elm_clears", "Clears", clears ? Number(clears).toLocaleString() : null, false, `Profile clears: ${Number(profile_clears).toLocaleString()}`);
+            data.user[`${mode}_grade_counts_ssh`] +
+            data.user[`${mode}_grade_counts_ss`] +
+            data.user[`${mode}_grade_counts_sh`] +
+            data.user[`${mode}_grade_counts_s`] +
+            data.user[`${mode}_grade_counts_a`] +
+            data.user[`${mode}_grade_counts_b`] + data.user[`${mode}_grade_counts_c`] + data.user[`${mode}_grade_counts_d`]) : 'NaN';
+        var clearsDisplay = getValueDisplay("inspector_elm_clears", "Clears", clears ? Number(clears).toLocaleString() : null, false);
         if (document.getElementById("inspector_elm_clears")) { document.getElementById("inspector_elm_clears").remove(); }
         profile_detail__values.appendChild(clearsDisplay);
 
@@ -3940,27 +2517,28 @@
         if (document.getElementById("inspector_elm_completion")) { document.getElementById("inspector_elm_completion").remove(); }
         profile_detail__values.appendChild(completionDisplay);
 
-        var top50sDisplay = getValueDisplay("inspector_elm_top50s", "Top 50s", Number(data.stats?.top50s ?? 0).toLocaleString());
-        if (document.getElementById("inspector_elm_top50s")) { document.getElementById("inspector_elm_top50s").remove(); }
-        profile_detail__values.appendChild(top50sDisplay);
+        // var top50sDisplay = getValueDisplay("inspector_elm_top50s", "Top 50s", Number(data.top50s ?? 0).toLocaleString());
+        // if (document.getElementById("inspector_elm_top50s")) { document.getElementById("inspector_elm_top50s").remove(); }
+        // profile_detail__values.appendChild(top50sDisplay);
 
-        var globalSSrankDisplay = getValueDisplay("inspector_elm_ss_rank", "SS Ranking", Number(data.user?.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.global_ss_rank_highest_date ? new Date(data.user?.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        }) : "N/A"
-            }`);
-        if (document.getElementById("inspector_elm_ss_rank")) { document.getElementById("inspector_elm_ss_rank").remove(); }
-        profile_detail__rank.appendChild(globalSSrankDisplay);
+        // FOR NOW DISABLED, AS DATA IS NOT UPDATED
+        // var globalSSrankDisplay = getValueDisplay("inspector_elm_ss_rank", "SS Ranking", Number(data.user?.global_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.global_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.global_ss_rank_highest_date ? new Date(data.user?.global_ss_rank_highest_date).toLocaleDateString("en-GB", {
+        //     day: 'numeric',
+        //     month: 'long',
+        //     year: 'numeric'
+        // }) : "N/A"
+        //     }`);
+        // if (document.getElementById("inspector_elm_ss_rank")) { document.getElementById("inspector_elm_ss_rank").remove(); }
+        // profile_detail__rank.appendChild(globalSSrankDisplay);
 
-        var countrySSrankDisplay = getValueDisplay("inspector_elm_ss_c_rank", "Country SS Ranking", Number(data.user?.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.country_ss_rank_highest_date ? new Date(data.user?.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        }) : "N/A"
-            }`);
-        if (document.getElementById("inspector_elm_ss_c_rank")) { document.getElementById("inspector_elm_ss_c_rank").remove(); }
-        profile_detail__rank.appendChild(countrySSrankDisplay);
+        // var countrySSrankDisplay = getValueDisplay("inspector_elm_ss_c_rank", "Country SS Ranking", Number(data.user?.country_ss_rank).toLocaleString(), true, `Highest rank: #${Number(data.user?.country_ss_rank_highest ?? 0).toLocaleString()} on ${data.user?.country_ss_rank_highest_date ? new Date(data.user?.country_ss_rank_highest_date).toLocaleDateString("en-GB", {
+        //     day: 'numeric',
+        //     month: 'long',
+        //     year: 'numeric'
+        // }) : "N/A"
+        //     }`);
+        // if (document.getElementById("inspector_elm_ss_c_rank")) { document.getElementById("inspector_elm_ss_c_rank").remove(); }
+        // profile_detail__rank.appendChild(countrySSrankDisplay);
 
         profile_detail__values.style.rowGap = "5px";
 
@@ -3993,118 +2571,6 @@
         }
         div.appendChild(valueDiv);
         return div;
-    }
-
-    function getBannerIndex() {
-        const mainElement = document.querySelector("[data-page-id='main']");
-        const coverIndex = Array.from(mainElement.children).findIndex(child => child.classList.contains("profile-cover"));
-        return { mainElement, coverIndex };
-    }
-
-    function setOrCreateTeamBannerElement(team) {
-        const { mainElement, coverIndex } = getBannerIndex();
-
-        var teamBanner = document.getElementById("inspector_team_banner");
-        if (teamBanner) {
-            //remove it and re-add it
-            teamBanner.remove();
-        }
-        teamBanner = getBaseBannerElement("inspector_team_banner", team.header_url ?? IMAGE_DEFAULT_TEAM_BG, true);
-
-        let p_extra_info = `<p style="color: gray;">Members: ${team.members}</p>`;
-
-        var rawHtml = `
-            <div style="display: flex; align-items: center; height: 100%;">
-                <div style="display: flex; flex-direction: row; justify-content: center;">
-                    <div style="display: flex; flex-direction: column; justify-content: center; margin-right: 1rem;">
-                        <p style="margin-bottom: 0px; font-size: 22px; color: white;">
-                            <i class="fas fa-users"></i>
-                        </p>
-                    </div>
-                    <div style="display: flex; flex-direction: column; justify-content: center;">
-                        <p style="margin-bottom: 0px; font-size: 22px;">Member of <a href="https://osu.ppy.sh/teams/${team.id}" target="_blank"><span id="inspector_user_clan_tag" style='color:${team.color}'></span> <span id="inspector_user_clan_name"></span></a></p>
-                        ${p_extra_info}
-                    </div>
-                </div>
-            </div>
-        `;
-
-        var overlay = teamBanner.querySelector("#inspector_user_banner_overlay");
-        overlay.innerHTML = rawHtml;
-
-        var clanTagElement = overlay.querySelector("#inspector_user_clan_tag");
-        clanTagElement.innerText = `[${team.short_name}]`;
-
-        var clanNameElement = overlay.querySelector("#inspector_user_clan_name");
-        clanNameElement.innerText = team.name;
-
-        mainElement.insertBefore(teamBanner, mainElement.children[coverIndex + 2]);
-    }
-
-    function setOrCreateCoeBannerElement(coe) {
-        const { mainElement, coverIndex } = getBannerIndex();
-
-        var coeBanner = document.getElementById("inspector_coe_banner");
-        if (coeBanner) {
-            //remove it and re-add it
-            coeBanner.remove();
-        }
-        coeBanner = getBaseBannerElement("inspector_coe_banner", "https://kirino.sh/d/coe_bg.png", false);
-
-        // var coeTag = document.createElement("div");
-        // coeTag.style.color = "white";
-        // coeTag.style.fontWeight = "light";
-        // coeTag.style.fontSize = "20px";
-        // coeTag.innerHTML = `<p style="margin-bottom: 0px;">COE Attendee</p>`;
-        var overlay = coeBanner.querySelector("#inspector_user_banner_overlay");
-        // overlay.appendChild(coeTag);
-
-        //coe logo on the left, followed by text
-        //logo: https://kirino.sh/d/coe_logo.png (automatic width, full height)
-        //text: COE Attendee above, temp text under it
-        var rawHtml = `
-            <div style="display: flex; align-items: center; height: 100%;">
-                <a href="https://cavoeboy.com/" target="_blank" style="display: flex; align-items: center; height: 100%;">
-                    <img src="https://kirino.sh/d/coe_logo.svg" style="height: 55%; margin-right: 10px;">
-                </a>
-                <div style="display: flex; flex-direction: column; justify-content: center;">
-                    <p style="margin-bottom: 0px; font-size: 18px;">Attendee${coe.user.roles?.length > 0 ? " / " + coe.user.roles.join(" / ") : ""}</p>
-                    <p style="margin-bottom: 0px; font-size: 12px;">${COE_ATTENDEE_TYPES[coe.ticketType] ?? "Unknown Ticket Type"}</p>
-                </div>
-            </div>
-        `;
-        overlay.innerHTML = rawHtml;
-
-        //insert it after the cover
-        mainElement.insertBefore(coeBanner, mainElement.children[coverIndex + 2]);
-    }
-
-    function getBaseBannerElement(id, image, overlay_tint = true) {
-        var banner = document.createElement("div");
-        banner.id = id;
-
-        banner.style.width = "100%";
-        banner.style.height = "60px";
-
-        if (image) {
-            const parsed_image = new URL(image);
-            banner.style.backgroundImage = `url(${parsed_image})`;
-            banner.style.backgroundSize = "cover";
-            banner.style.backgroundPosition = "center";
-        }
-
-        var overlay = document.createElement("div");
-        overlay.style.width = "100%";
-        overlay.style.height = "100%";
-        overlay.style.backgroundColor = `rgba(0, 0, 0, ${overlay_tint ? 0.7 : 0})`;
-        overlay.style.display = "flex";
-        overlay.style.alignItems = "center";
-        overlay.style.justifyContent = "left";
-        overlay.style.paddingLeft = "50px";
-        overlay.id = "inspector_user_banner_overlay";
-        banner.appendChild(overlay);
-
-        return banner;
     }
 
     let activeChart = 'pp';
@@ -4594,6 +3060,21 @@
 
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    function countryCodeToUnicodeHex(countryCode) {
+        if (countryCode.length !== 2 || !/^[a-zA-Z]+$/.test(countryCode)) {
+            throw new Error("Input must be a 2-letter country code (e.g., 'JP', 'US')");
+        }
+
+        const c1 = countryCode.toUpperCase().charCodeAt(0);
+        const c2 = countryCode.toUpperCase().charCodeAt(1);
+
+        // Regional Indicator A (🇦) starts at 0x1F1E6 (U+1F1E6)
+        const hex1 = (0x1F1E6 + c1 - 'A'.charCodeAt(0)).toString(16);
+        const hex2 = (0x1F1E6 + c2 - 'A'.charCodeAt(0)).toString(16);
+
+        return `${hex1}-${hex2}`;
     }
 
 
