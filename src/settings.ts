@@ -1,3 +1,4 @@
+import { APIGetUserData } from "./api";
 import settingsIcon from "./assets/settings.png";
 import { addStyle, getValue, setValue } from "./gm_api";
 import type { ISetting, ISettingsSection } from "./types/settings";
@@ -32,16 +33,13 @@ let SETTINGS_DATA: ISettingsSection[] = [
                 'type': 'button',
                 'description': 'Test your API credentials',
                 'onClick': async () => {
-                    //TODO
-                    // console.log("Testing API credentials...");
-
                     try {
-                        // const userData = await APIGetUserData(2);
-                        // if (userData) {
-                        //     alert("API credentials are valid! User data for user ID 2: " + userData.username);
-                        // } else {
-                        //     alert("API credentials are invalid!");
-                        // }
+                        const userData = await APIGetUserData(2);
+                        if (userData) {
+                            alert("API credentials are valid! User data for user ID 2: " + userData.username);
+                        } else {
+                            alert("API credentials are invalid!");
+                        }
                     } catch (error: any) {
                         alert("API credentials are invalid! Error: " + error.message);
                     }

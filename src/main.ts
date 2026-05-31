@@ -1,4 +1,5 @@
 import { createSettings } from "./settings";
+import { runUserPage } from "./userpage";
 
 console.log("userscript loaded");
 console.log("GM object:", typeof GM);
@@ -27,7 +28,8 @@ async function run(trigger: string) {
 
     try {
         createSettings();
-        console.log("Runner executed successfully. Trigger: ", trigger);
+
+        await runUserPage();
     }catch (error) {
         console.error("Error in runner: ", error);
     } finally {
