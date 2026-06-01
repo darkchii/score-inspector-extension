@@ -283,22 +283,11 @@ export async function getUserData(user_id: string, mode: string = "osu") {
         });
         user_data = (await alt_user_data.json() as IAltUserData) || null;
 
-        if (!user_data) {
-            throw new Error("Failed to fetch user data from inspector API");
-        }
-
         const osu_team = await getTeams([user_id]);
 
         if (osu_team) {
             user_data!.team = osu_team[user_id]!;
         }
-
-        // const score_rank_data = await APIGetScoreRank(user_id, modeIndex);
-
-        // if (score_rank_data) {
-        //     user_data.stats = {};
-        //     user_data.stats.scoreRank = score_rank_data?.[0]?.rank ?? null;
-        // }
 
         return user_data;
     } catch (err) {

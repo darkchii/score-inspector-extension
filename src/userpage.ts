@@ -68,13 +68,15 @@ export async function runUserPage() {
 
     const user_exists = data?.user != null;
 
-    if (!user_exists) {
-        console.warn("User data not found for user id: ", user_id);
-        return;
+
+    if (getValue("teams_show_team_tags", true) && data?.team) {
+        setOrCreateUserTeamTagElement(data.team);
     }
 
-    if (getValue("teams_show_team_tags", true) && data.team) {
-        setOrCreateUserTeamTagElement(data.team);
+    if (!user_exists) {
+        console.warn("User data not found for user id: ", user_id);
+        setNoAvailableStatsLabel();
+        return;
     }
 
     if (data.completion) {
@@ -692,4 +694,14 @@ function updateGraph(rank_data: any[], rank_type: string) {
 
     _chart_data = data;
     _chart = new Chart(ctx, data);
+}
+
+function setNoAvailableStatsLabel() {
+    const headerTitle = document.getElementsByClassName("header-v4__title")[0];
+    if(!headerTitle) {
+        console.warn("User has no osu!alt statistics. Could not find header element to inform, so this is a fallback console warning.");
+        return;
+    }
+    (headerTitle as HTMLElement).style.display = "block";
+    (headerTitle as HTMLElement).innerHTML = `<span>player info</span><span style="margin-left: 5px;font-size:12px;color:gray;">No osu!alt statistics available for this user.</span>`;
 }
