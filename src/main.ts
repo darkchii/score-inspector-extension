@@ -1,5 +1,7 @@
+import { getValue } from "./gm_api";
 import { runScorePage } from "./scorepage";
 import { createSettings } from "./settings";
+import { runTeams } from "./teams";
 import { runUserPage } from "./userpage";
 
 console.log("userscript loaded");
@@ -32,7 +34,11 @@ async function run(trigger: string) {
 
         await runUserPage();
         await runScorePage();
-    }catch (error) {
+
+        if (getValue("teams_show_team_tags", true)) {
+            await runTeams();
+        }
+    } catch (error) {
         console.error("Error in runner: ", error);
     } finally {
         IS_RUNNER_ACTIVE = false;

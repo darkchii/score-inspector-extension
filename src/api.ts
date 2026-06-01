@@ -120,7 +120,7 @@ export async function APIGetUserData(userId: string | number): Promise<IUser | n
     }
 }
 
-async function APIGetUsers(userIds: string[]): Promise<IUser[]> {
+export async function APIGetUsers(userIds: string[]): Promise<IUser[]> {
     try {
         //max 50 per request, so split into chunks
         //no parallel requests due to rate limits
@@ -215,7 +215,7 @@ async function APIGetScoreRank(userId: string | number, rulesetId: string): Prom
 
 const USER_TEAM_CACHE: { [user_id: string]: ITeam } = {};
 const SKIP_USER_TEAM_FETCH: string[] = []; //these don't have teams, so we skip them for this session
-async function getTeams(user_id_array: string[]): Promise<{ [user_id: string]: ITeam } | null> {
+export async function getTeams(user_id_array: string[] | null): Promise<{ [user_id: string]: ITeam } | null> {
     if (!user_id_array || user_id_array.length === 0) {
         return null;
     }
