@@ -12,7 +12,8 @@ let update_tag_observer_list = [
     "user-list__items",
     "beatmapsets",
     "osuplus-table",
-    "qtip--user-card"
+    "qtip--user-card",
+    "page-extra"
 ];
 
 export async function runTeams() {
