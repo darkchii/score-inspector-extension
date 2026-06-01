@@ -1,3 +1,4 @@
+import { runScorePage } from "./scorepage";
 import { createSettings } from "./settings";
 import { runUserPage } from "./userpage";
 
@@ -30,6 +31,7 @@ async function run(trigger: string) {
         createSettings();
 
         await runUserPage();
+        await runScorePage();
     }catch (error) {
         console.error("Error in runner: ", error);
     } finally {

@@ -140,7 +140,7 @@ async function APIGetUsers(userIds: string[]): Promise<IUser[]> {
     }
 }
 
-async function APIGetBeatmapScores(beatmapId: string, userId: string, rulesetId: string): Promise<{ scores: IScore[] } | null> {
+export async function APIGetBeatmapScores(beatmapId: string | number, userId: string | number, rulesetId: string): Promise<IScore[] | null> {
     try {
         const beatmap = await APIGetBeatmap(beatmapId);
         const res = await APIAuthorizedClientApiCall(`https://osu.ppy.sh/api/v2/beatmaps/${beatmapId}/scores/users/${userId}/all?ruleset=${rulesetId}`, 'get', null);
@@ -161,13 +161,13 @@ async function APIGetBeatmapScores(beatmapId: string, userId: string, rulesetId:
             }
         }
 
-        return res;
+        return res?.scores;
     } catch (err: any) {
         throw new Error('Unable to get user beatmap scores: ' + err.message);
     }
 }
 
-async function APIGetBeatmap(beatmapId: string, mods: string[] | null = null): Promise<IBeatmap | null> {
+async function APIGetBeatmap(beatmapId: string | number, mods: string[] | null = null): Promise<IBeatmap | null> {
     try {
         const res = await APIAuthorizedClientApiCall(`https://osu.ppy.sh/api/v2/beatmaps/${beatmapId}`, 'get', null);
         return res;
@@ -176,7 +176,7 @@ async function APIGetBeatmap(beatmapId: string, mods: string[] | null = null): P
     }
 }
 
-async function APIGetBeatmapAttributes(beatmapId: string, rulesetId: string, mods: string[] | null = null): Promise<IBeatmapAttributes | null> {
+export async function APIGetBeatmapAttributes(beatmapId: string | number, rulesetId: string, mods: string[] | null = null): Promise<IBeatmapAttributes | null> {
     try {
         const body = {
             mods: mods || [],
@@ -189,7 +189,7 @@ async function APIGetBeatmapAttributes(beatmapId: string, rulesetId: string, mod
     }
 }
 
-async function APIGetScoreRank(userId: string, rulesetId: string): Promise<IScoreRank | null> {
+async function APIGetScoreRank(userId: string | number, rulesetId: string): Promise<IScoreRank | null> {
     try {
         const url = `https://score.respektive.pw/u/${userId}?m=${rulesetId}`;
         //use fetch
@@ -283,7 +283,7 @@ export async function getUserData(user_id: string, mode: string = "osu") {
         });
         user_data = (await alt_user_data.json() as IAltUserData) || null;
 
-        if(!user_data) {
+        if (!user_data) {
             throw new Error("Failed to fetch user data from inspector API");
         }
 
@@ -306,3 +306,41 @@ export async function getUserData(user_id: string, mode: string = "osu") {
         return null;
     }
 }
+
+// export async function getUserBeatmapScores(user_id: string, beatmap_id: string, ruleset: string) {
+//     try {
+//         // const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {
+//         //     method: "GET"
+//         // });
+//         const data: IScore[] | null = await APIGetBeatmapScores(beatmap_id, user_id, ruleset);
+
+//         console.log(data);
+//         if (data) {
+//             let attr_cache: { [key: string]: IBeatmapAttributes } = {};
+//             let _data = data.map(async (score) => {
+//                 //get the attributes for the score remotely
+//                 // let attributes = await getBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+//                 let attributes = null;
+//                 let mod_str = JSON.stringify(score.mods.data);
+//                 let mod_str_hash = btoa(mod_str);
+//                 if (attr_cache[mod_str_hash]) {
+//                     attributes = attr_cache[mod_str_hash];
+//                 } else {
+//                     attributes = await APIGetBeatmapAttributes(score.beatmap_id, score.ruleset_id, score.mods);
+//                     attr_cache[mod_str_hash] = attributes;
+//                 }
+//                 return new Score(score, attributes, data.beatmap);
+//             });
+//             return {
+//                 scores: await Promise.all(_data),
+//                 beatmap: data.beatmap,
+//                 attributes: data.attributes
+//             };
+//         } else {
+//             console.error("Error fetching beatmap scores", response.status, response.statusText);
+//             return null;
+//         }
+//     } catch (err) {
+//         console.error(err);
+//     }
+// }

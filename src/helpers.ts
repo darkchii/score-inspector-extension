@@ -47,3 +47,44 @@ export function GetTeamColor(team: ITeam): string {
     const b = (hash * 213) % (255 - minColorOffset) + minColorOffset;
     return `rgb(${r}, ${g}, ${b})`;
 }
+
+const defaultNumberFormatter = new Intl.NumberFormat(navigator.language);
+export function formatNumber(num: number, precision?: number, options?: Intl.NumberFormatOptions, locale?: string): string | number {
+    if (num === null || num === undefined || !num || isNaN(num) || num === Infinity || num === -Infinity) {
+        return num;
+    }
+
+    if (precision == null && options == null && locale == null) {
+        return defaultNumberFormatter.format(num);
+    }
+
+    options ??= {};
+
+    if (precision != null) {
+        options.minimumFractionDigits = precision;
+        options.maximumFractionDigits = precision;
+    }
+
+    return num.toLocaleString(locale ?? navigator.language, options);
+}
+
+export function getRulesetIconSpan(ruleset_id: number): HTMLSpanElement {
+    const ruleset_icon = document.createElement("span");
+    ruleset_icon.classList.add("fal", `fa-extra-mode-${MODE_SLUGS_ALT[ruleset_id]}`);
+    return ruleset_icon;
+}
+
+export function countryCodeToUnicodeHex(countryCode: string): string {
+    if (countryCode.length !== 2 || !/^[a-zA-Z]+$/.test(countryCode)) {
+        throw new Error("Input must be a 2-letter country code (e.g., 'JP', 'US')");
+    }
+
+    const c1 = countryCode.toUpperCase().charCodeAt(0);
+    const c2 = countryCode.toUpperCase().charCodeAt(1);
+
+    // Regional Indicator A (🇦) starts at 0x1F1E6 (U+1F1E6)
+    const hex1 = (0x1F1E6 + c1 - 'A'.charCodeAt(0)).toString(16);
+    const hex2 = (0x1F1E6 + c2 - 'A'.charCodeAt(0)).toString(16);
+
+    return `${hex1}-${hex2}`;
+}
