@@ -213,6 +213,42 @@ async function APIGetScoreRank(userId: string | number, rulesetId: string): Prom
     }
 }
 
+async function getExtraTeamData(teams: ITeam[]): Promise<ITeam[]> {
+    try {
+        const team_ids = teams.map(team => team.id);
+        const response = await fetch(`${config.API_URL}extension/teamData`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                teamIds: team_ids
+            })
+        });
+
+        //if result, basically merge the data into the existing teams (all keys regardless, so not individually checking for each key)
+        if (response.status === 200) {
+            const data = await response.json();
+            if (data && Object.keys(data).length > 0) {
+                return teams.map(team => {
+                    if (data[team.id]) {
+                        return { ...team, ...data[team.id] };
+                    }
+                    return team;
+                }
+                );
+            }
+        } else {
+            return teams;
+        }
+    }catch (err) {
+        console.error("Error fetching extra team data", err);
+        return teams;
+    }
+
+    return teams;
+}
+
 const USER_TEAM_CACHE: { [user_id: string]: ITeam } = {};
 const SKIP_USER_TEAM_FETCH: string[] = []; //these don't have teams, so we skip them for this session
 export async function getTeams(user_id_array: string[] | null): Promise<{ [user_id: string]: ITeam } | null> {
@@ -245,6 +281,22 @@ export async function getTeams(user_id_array: string[] | null): Promise<{ [user_
         return team_map;
     }
 
+    //apply extra team data if we have any teams
+    const teams = userData.map(user => user.team).filter(team => team) as ITeam[];
+    if (teams.length > 0) {
+        const teams_with_extra_data = await getExtraTeamData(teams);
+        //merge the extra team data back into the userData
+        userData.forEach(user => {
+            if (user.team) {
+                const extra_team_data = teams_with_extra_data.find(team => team.id === user.team!.id);
+                if (extra_team_data) {
+                    user.team = { ...user.team, ...extra_team_data };
+                }
+            }
+        }
+        );
+    }
+
     for (const user of userData) {
         if (user.team) {
             team_map[`${user.id}`] = user.team;
@@ -263,25 +315,30 @@ export async function getTeams(user_id_array: string[] | null): Promise<{ [user_
         });
     }
 
+    console.log(team_map);
     return team_map;
 }
 
 export async function getUserData(user_id: string, mode: string = "osu") {
     const modeIndex = MODE_SLUGS_ALT.indexOf(mode);
-    let user_data: IAltUserData | null = null;
+    let user_data: IAltUserData = {} as IAltUserData;
     try {
-        // Inspector/alt data
-        const alt_user_data = await fetch(`${config.API_URL}extension/profile`, {
-            headers: {
-                "Content-Type": "application/json"
-            },
-            method: "POST",
-            body: JSON.stringify({
-                user_id: user_id,
-                mode: modeIndex,
-            })
-        });
-        user_data = (await alt_user_data.json() as IAltUserData) || null;
+        try {
+            const alt_user_data = await fetch(`${config.API_URL}extension/profile`, {
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                method: "POST",
+                body: JSON.stringify({
+                    user_id: user_id,
+                    mode: modeIndex,
+                })
+            });
+            user_data = (await alt_user_data.json() as IAltUserData) || null;
+        }
+        catch (err) {
+            console.error("Error fetching alt user data", err);
+        }
 
         const osu_team = await getTeams([user_id]);
 

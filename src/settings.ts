@@ -10,7 +10,7 @@ let SETTINGS_DATA: ISettingsSection[] = [
     },
     {
         'title': 'API',
-        'description': 'Please set your OAuth token (https://osu.ppy.sh/home/account/edit)',
+        'description': 'Please set your OAuth token (https://osu.ppy.sh/home/account/edit > New OAuth Application > No URL needed)',
         'options': [
             {
                 'name': 'Client ID',
