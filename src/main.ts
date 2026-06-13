@@ -1,12 +1,9 @@
+import { runBeatmapPage } from "./beatmappage";
 import { getValue } from "./gm_api";
 import { runScorePage } from "./scorepage";
 import { createSettings } from "./settings";
 import { runTeams } from "./teams";
 import { runUserPage } from "./userpage";
-
-console.log("userscript loaded");
-console.log("GM object:", typeof GM);
-console.log("GM_addStyle:", typeof GM_addStyle);
 
 async function start() {
     //create turbo listeners
@@ -34,6 +31,7 @@ async function run(trigger: string) {
 
         await runUserPage();
         await runScorePage();
+        await runBeatmapPage();
 
         if (getValue("teams_show_team_tags", true)) {
             await runTeams();

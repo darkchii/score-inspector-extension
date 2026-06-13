@@ -189,6 +189,15 @@ function setOrCreateStatisticsElements(data: IAltUserData, mode: string) {
     }
 
     if (getValue("profile_show_extra_grades", true)) {
+        //'parent' contains 5 elements already, it needs to newline after the 4th element
+        const br = document.createElement("div");
+        br.style.flexBasis = "100%";
+        br.style.width = "100%";
+        parent.insertBefore(br, parent.children[4]!);
+
+        //also make sure 'parent' aligns to the right
+        parent.style.justifyContent = "flex-end";
+
         //create the elements if they don't exist
         const ranks = ["B", "C", "D"];
         // const ranks = gradeKeys.map((key: string) => key.replace("{mode}", mode)) as string[];
@@ -220,22 +229,16 @@ function setOrCreateStatisticsElements(data: IAltUserData, mode: string) {
             parent.appendChild(b);
         });
 
-        //find the parent of score-rank--A
-        var aParent = document.getElementsByClassName("score-rank--A")[0]?.parentNode;
+        // //find the parent of score-rank--A
+        // var aParent = document.getElementsByClassName("score-rank--A")[0]?.parentNode;
 
-        if (!aParent) {
-            console.error("Could not find parent element for score-rank--A");
-            return;
-        }
+        // if (!aParent) {
+        //     console.error("Could not find parent element for score-rank--A");
+        //     return;
+        // }
 
-        //add an element before aParent to force the next elements to be on the next line
-        var br = document.createElement("div");
-        //flex expand
-        br.style.flexBasis = "100%";
-        aParent.parentNode!.insertBefore(br, aParent);
-
-        //align all the elements to the right
-        parent.style.justifyContent = "flex-end";
+        // //align all the elements to the right
+        // parent.style.justifyContent = "flex-end";
     }
 
     const profile_detail__rank = document.getElementsByClassName("profile-detail__values")[0];
@@ -698,7 +701,7 @@ function updateGraph(rank_data: any[], rank_type: string) {
 
 function setNoAvailableStatsLabel() {
     const headerTitle = document.getElementsByClassName("header-v4__title")[0];
-    if(!headerTitle) {
+    if (!headerTitle) {
         console.warn("User has no osu!alt statistics. Could not find header element to inform, so this is a fallback console warning.");
         return;
     }

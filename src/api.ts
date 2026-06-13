@@ -7,6 +7,7 @@ import type { IScoreRank } from "./types/scorerank";
 import type { IAltUserData, IUser } from "./types/user";
 import config from "./config.json";
 import type { ITeam } from "./types/team";
+import type { IBeatmapMedia } from "./types/beatmapMedia";
 
 //all api stuff
 const DEFAULT_API_VERSION = 20240529;
@@ -241,12 +242,33 @@ async function getExtraTeamData(teams: ITeam[]): Promise<ITeam[]> {
         } else {
             return teams;
         }
-    }catch (err) {
+    } catch (err) {
         console.error("Error fetching extra team data", err);
         return teams;
     }
 
     return teams;
+}
+
+export async function getBeatmapMedia(beatmapset_id: number): Promise<IBeatmapMedia | null> {
+    try {
+        const response = await fetch(`${config.API_URL}extension/beatmapMedia/${beatmapset_id}`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (response.status === 200) {
+            const data = await response.json();
+            return data;
+        } else {
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching beatmap media", error);
+        return null;
+    }
 }
 
 const USER_TEAM_CACHE: { [user_id: string]: ITeam } = {};
