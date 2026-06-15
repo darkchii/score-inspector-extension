@@ -78,12 +78,19 @@ let SETTINGS_DATA: ISettingsSection[] = [
         'internal_name': 'beatmap_page',
         'options': [
             {
-                'name': 'Show spinner count',
-                'internal_name': 'beatmap_page_show_spinner_count',
+                'name': 'Show beatmap media',
+                'internal_name': 'beatmap_page_show_media',
                 'type': 'checkbox',
                 'default': true,
-                'description': 'Show spinner count',
+                'description': 'Show beatmap media (YouTube, Spotify..)',
             },
+            // {
+            //     'name': 'Show spinner count',
+            //     'internal_name': 'beatmap_page_show_spinner_count',
+            //     'type': 'checkbox',
+            //     'default': true,
+            //     'description': 'Show spinner count',
+            // },
             // {
             //     'name': 'Show performance calculator',
             //     'internal_name': 'beatmap_page_show_performance_calculator',
@@ -105,6 +112,26 @@ let SETTINGS_DATA: ISettingsSection[] = [
                 'default': true,
                 'description': 'Show user scores',
             },
+        ]
+    },
+    {
+        'title': 'Leaderboards',
+        'internal_name': 'leaderboards',
+        'options': [
+            {
+                'name': 'Show score changes',
+                'internal_name': 'leaderboards_show_score_changes',
+                'type': 'checkbox',
+                'default': true,
+                'description': 'Show score changes',
+            }
+            // {
+            //     'name': 'Separate flags column',
+            //     'internal_name': 'leaderboards_separate_flags_column',
+            //     'type': 'checkbox',
+            //     'default': true,
+            //     'description': 'Show a separate column for flags instead of merging them with the user column',
+            // },
         ]
     }
 ]

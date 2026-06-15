@@ -1,5 +1,5 @@
 import { getBeatmapMedia } from "./api";
-import { addStyle } from "./gm_api";
+import { addStyle, getValue } from "./gm_api";
 import type { IBeatmapMedia } from "./types/beatmapMedia";
 
 export async function runBeatmapPage() {
@@ -28,12 +28,11 @@ export async function runBeatmapPage() {
 
         const beatmapset_id_number: number = Number(beatmapset_id);
 
-        console.log(`Found beatmapset id ${beatmapset_id} for beatmap page`);
-
-        const media: IBeatmapMedia | null = await getBeatmapMedia(beatmapset_id_number);
-
-        if (media) {
-            populateBeatmapMedia(media);
+        if (getValue('beatmap_page_show_media', true)) {
+            const media: IBeatmapMedia | null = await getBeatmapMedia(beatmapset_id_number);
+            if (media) {
+                populateBeatmapMedia(media);
+            }
         }
     } catch (err) {
         console.error("Error finding beatmapset id", err);

@@ -375,6 +375,28 @@ export async function getUserData(user_id: string, mode: string = "osu") {
     }
 }
 
+export async function getScoreRankHistory(user_ids: string[], mode_id: number) {
+    try {
+        const response = await fetch(`${config.API_URL}extension/score_rank_history/${mode_id}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ user_ids: user_ids })
+        });
+
+        if (response.status === 200) {
+            const data = await response.json();
+            return data;
+        } else {
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching score rank history", error);
+        return null;
+    }
+}
+
 // export async function getUserBeatmapScores(user_id: string, beatmap_id: string, ruleset: string) {
 //     try {
 //         // const response = await fetch(`${SCORE_INSPECTOR_API}extension/scores/${beatmap_id}/${user_id}/${ruleset}`, {

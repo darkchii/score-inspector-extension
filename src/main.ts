@@ -1,5 +1,7 @@
 import { runBeatmapPage } from "./beatmappage";
 import { getValue } from "./gm_api";
+import { runLeaderboards } from "./leaderboardpage";
+import { runScoreRankChanges } from "./scorelbpage";
 import { runScorePage } from "./scorepage";
 import { createSettings } from "./settings";
 import { runTeams } from "./teams";
@@ -35,6 +37,16 @@ async function run(trigger: string) {
 
         if (getValue("teams_show_team_tags", true)) {
             await runTeams();
+        }
+
+        if (window.location.href.includes("/rankings/") ||
+            window.location.href.includes("/multiplayer/rooms/") ||
+            window.location.href.includes("/seasons/")) {
+            await runLeaderboards(); //Run this BEFORE score rank stuff etc, since those check for added columns and index offsets
+        }
+
+        if (getValue("leaderboards_show_score_changes", true)) {
+            await runScoreRankChanges();
         }
     } catch (error) {
         console.error("Error in runner: ", error);
