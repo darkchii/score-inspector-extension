@@ -44,6 +44,12 @@ let SETTINGS_DATA: ISettingsSection[] = [
                         alert("API credentials are invalid! Error: " + error.message);
                     }
                 }
+            },
+            {
+                'name': 'API Info',
+                'internal_name': 'api_info',
+                'type': 'none',
+                'description': 'The client ID and secret are only stored in your browser, and used to directly access the osu! API.',
             }
         ]
     },
@@ -125,13 +131,6 @@ let SETTINGS_DATA: ISettingsSection[] = [
                 'default': true,
                 'description': 'Show score changes',
             }
-            // {
-            //     'name': 'Separate flags column',
-            //     'internal_name': 'leaderboards_separate_flags_column',
-            //     'type': 'checkbox',
-            //     'default': true,
-            //     'description': 'Show a separate column for flags instead of merging them with the user column',
-            // },
         ]
     }
 ]
@@ -291,6 +290,14 @@ function createSettingsOptionRow(section: ISettingsSection, setting: ISetting) {
             break;
         case "button":
             row_content = createSettingsOptionButton(setting);
+            break;
+        case "none":
+            row_content = document.createElement("div");
+            row_content.classList.add("account-edit-entry", "account-edit-entry--no-label", "js-account-edit");
+            const description = document.createElement("div");
+            description.classList.add("account-edit-entry__rules");
+            description.textContent = setting.description ?? 'No description';
+            row_content.appendChild(description);
             break;
     }
 

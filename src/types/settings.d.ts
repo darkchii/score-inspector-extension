@@ -8,7 +8,7 @@ export interface ISettingsSection {
 export interface ISetting {
     name: string;
     internal_name: string;
-    type: "checkbox" | "text" | "password" | "button";
+    type: "checkbox" | "text" | "password" | "button" | "none";
     default?: any;
     description?: string;
     is_password?: boolean;
