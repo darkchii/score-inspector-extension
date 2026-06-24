@@ -1,10 +1,8 @@
 # ⚠️ NOTE ⚠️
 
-⚠️ This project will soon be archived. The state of scores inspector as of editing this (May 22 2026) will be legacy, as new versions are made and are inherently different in how it works. The extension will be part of the rework.
+⚠️ This project is in progress of a large rewrite! Earlier, this states this project got archived, but I've decided to keep on going with this repository.
 
-All network related projects are already disabled, hence why this extension does not function anymore. (I also got IP banned from osu! which should be resolved soon, which pushed me to turning it all off prematurely while rework isn't done yet.)
-
-I'm unsure on how to proceed, whether a userscript suffices again, or a fully fledged browser extension, but this takes no priority to scores inspector 3.
+The new version will be available soon.
 
 ## About
 
